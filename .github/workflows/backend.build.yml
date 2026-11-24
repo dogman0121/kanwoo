@@ -1,0 +1,35 @@
+on:
+    workflow_call:
+        inputs:
+            image-tag:
+                required: true
+                type: string
+                description: Tag for docker image
+            environment:
+                required: true
+                type: string
+        secrets:
+            YC_SA_ID:
+                required: true
+
+jobs:
+    build:
+        runs-on: ubuntu-latest
+        environment: ${{ inputs.environment }}
+        steps:
+            - name: Clone repo
+              uses: actions/checkout@v3
+
+            - name: Login to yandex cloud registry
+              uses: yc-actions/yc-cr-login@v3
+              with:
+                yc-sa-id: ${{ secrets.YC_SA_ID}}
+
+            - name: Build, tag, and push image to Yandex Cloud Container Registry
+              env:
+                CR_REGISTRY: ${{ vars.CR_REGISTRY }}
+                CR_REPOSITORY: ${{ vars.CR_REPOSITORY }}
+                IMAGE_TAG: ${{ inputs.image-tag }}
+              run: |
+                docker build -t cr.yandex/$CR_REGISTRY/$CR_REPOSITORY:$IMAGE_TAG ./backend
+                docker push cr.yandex/$CR_REGISTRY/$CR_REPOSITORY:$IMAGE_TAG

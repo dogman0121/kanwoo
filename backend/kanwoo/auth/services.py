@@ -1,0 +1,327 @@
+from flask import render_template, current_app
+from flask_jwt_extended import create_access_token, create_refresh_token, get_csrf_token
+from werkzeug.security import generate_password_hash, check_password_hash
+import random
+import jwt
+import time
+import requests
+from PIL import Image
+import io
+import hashlib
+
+from kanwoo.cache import Cache
+from kanwoo.email import EmailService
+from kanwoo.user.exceptions import UserEmailAlreadyTakenException, UserNotFoundException
+from kanwoo.user.models import User
+from kanwoo.user.dto import UserCreateDTO
+from kanwoo.user.repositories import UserRepository
+from kanwoo.user.services import UserService
+from kanwoo.database import DBTransaction
+from kanwoo.entities import File
+
+from .exceptions import AuthEmailAlreadyTakenException, \
+    AuthUserWithLoginNotExistException, AuthPasswordNotMatchException, \
+    AuthUserWithEmailNotExistException, AuthJWTTokenInvalidException, AuthJWTTokenExpiredException, \
+    VerificationCodeExpiredException, AuthVerificationCodeExpiredException, AuthWrongVerificationCodeException, \
+    AuthRecoveryTokenExpired
+from .dto import AuthRegisterDTO, AuthRecoveryDTO, AuthLoginDTO, AuthYandexOauthDTO, AuthYandexOauthUserDTO
+from .entity import OauthTypeEnum
+from .repositories import AuthRepository
+from .models import Oauth
+
+class YandexOauthService:
+    def __init__(
+        self, 
+        client_secret,
+        oauth_login_url,
+        avatars_url,
+        avatars_size
+    ):
+        self.oauth_login_url = oauth_login_url
+        self.client_secret = client_secret
+        self.avatars_url = avatars_url
+        self.avatars_size= avatars_size
+
+    def get_user_info(self, data: AuthYandexOauthDTO) -> AuthYandexOauthUserDTO:
+        response = requests.get(
+            self.oauth_login_url, 
+            params={"jwt_secret": self.client_secret}, 
+            headers={"Authorization": f"Oauth {data.access_token}"}
+        )
+
+        json = response.json()
+
+        return AuthYandexOauthUserDTO(
+            login=json.get("login"),
+            id=json.get("id"),
+            is_avatar_empty=json.get("is_avatar_empty"),
+            default_avatar_id=json.get("default_avatar_id")
+        )
+
+    def get_user_avatar(self, avatar_uid):
+        response = requests.get(self.avatars_url + "/" + avatar_uid + "/" + self.avatars_size)
+        
+        io_bytes = io.BytesIO(response.content)
+
+        image = Image.open(io_bytes)
+
+        file = File(
+            filename=image.filename,
+            content_type=image.get_format_mimetype(),
+            bytes=response.content
+        )
+
+        return file
+    
+
+class JWTService:
+    def __init__(self, secret_key, algorithm):
+        self.secret_key = secret_key.encode()
+        self.algorithm = algorithm
+
+    def encode_jwt(self, payload):
+        return jwt.encode(
+            payload=payload,
+            key=self.secret_key,
+            algorithm = self.algorithm
+        )
+    
+    def decode_jwt(self, token):
+        try:
+            data = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
+
+            return data
+        except jwt.ExpiredSignatureError:
+            raise AuthJWTTokenExpiredException("JWT token is expired.")
+        except jwt.InvalidTokenError:
+            raise AuthJWTTokenInvalidException("JWT token is invalid.")
+        except Exception as e:
+            raise AuthJWTTokenInvalidException("JWT token is invalid.")
+        
+    def create_access_token(self, user):
+        return create_access_token(user)
+
+    def create_refresh_token(self, user):
+        return create_refresh_token(user)
+
+    def get_csrf_token(self, token):
+        return get_csrf_token(token)
+
+    def create_auth_tokens(self, user):
+        return self.create_access_token(user), self.create_refresh_token(user)
+
+
+class HashService:
+
+    def generate_password_hash(self, password, method="scrypt", salt_length = 16):
+        return generate_password_hash(password, method=method, salt_length=salt_length)
+    
+    def check_password_hash(self, password_hash, password):
+        return check_password_hash(password_hash, password)
+
+    def generate_hash(self, data: bytes):
+        return hashlib.sha256(data)
+
+
+class VerificationCodeService:
+    CODE_EXPIRES_TIME = 300 # seconds
+
+    def __init__(self, cache: Cache):
+        self.cache = cache
+
+    def _generate_code(self):
+        return str(random.randint(100000, 999999))
+    
+    def _get_email_verification_key(self, email):
+        return f"auth:verification:code:{email}"
+
+    def _get_recovery_key(self, email):
+        return f"auth:recovery:code:{email}"
+
+    def get_email_verification_code(self, email):
+        code = self._generate_code()
+
+        self.cache.set(self._get_email_verification_key(email), str(code), self.CODE_EXPIRES_TIME)
+
+        return code
+
+    def get_recovery_code(self, email):
+        code = self._generate_code()
+
+        self.cache.set(self._get_recovery_key(email), code, self.CODE_EXPIRES_TIME)
+
+        return code
+
+    def check_email_verification_code(self, email, code):
+        code_from_cache = self.cache.get(self._get_email_verification_key(email))
+
+        if code_from_cache is None:
+            raise VerificationCodeExpiredException(f"Verification code for email {email} is expired.")
+        
+        return code_from_cache == str(code)
+
+    def check_recovery_code(self, email, code):
+        code_from_cache = self.cache.get(self._get_recovery_key(email))
+
+        if code_from_cache is None:
+            raise VerificationCodeExpiredException(f"Verification code for email {email} is expired.")
+        
+        return code_from_cache == str(code)
+
+
+class AuthService:
+    
+    def __init__(
+        self, 
+        user_service: UserService, 
+        email_service: EmailService,
+        jwt_service: JWTService,
+        hash_service: HashService,
+        verification_code_service: VerificationCodeService,
+        yandex_oauth_service: YandexOauthService,
+        user_repo: UserRepository,
+        db_transaction: DBTransaction,
+        auth_repo: AuthRepository,
+        frontend_url: str
+    ):
+        self.db_transaction = db_transaction
+        self.user_service = user_service
+        self.email_service = email_service
+        self.jwt_service = jwt_service
+        self.hash_service = hash_service
+        self.verification_code_service = verification_code_service
+        self.frontend_url = frontend_url
+        self.yandex_oauth_service = yandex_oauth_service
+        self.user_repo = user_repo
+        self.auth_repo = auth_repo
+
+    def register_user(self, register_dto: AuthRegisterDTO) -> User:
+        code = register_dto.code
+        email = register_dto.email
+        password = register_dto.password
+
+        try: 
+            if not self.verification_code_service.check_email_verification_code(email, code):
+                raise AuthWrongVerificationCodeException(error="invalid_code", detail={"code": ["Invalid code"]})
+            
+            password_hash = self.hash_service.generate_password_hash(password)
+
+            user_create_dto = UserCreateDTO(
+                email=email,
+                password_hash=password_hash
+            )
+
+            return self.user_service.system_create_user(user_create_dto)
+        except VerificationCodeExpiredException:
+            raise AuthVerificationCodeExpiredException(error="code_expired")
+        except UserEmailAlreadyTakenException:
+            raise AuthEmailAlreadyTakenException(error="email_exists", detail={"email": ["User with email already exists"]})
+
+    def login_user(self, login_dto: AuthLoginDTO):
+        email = login_dto.email
+        password = login_dto.password
+
+        try:
+            user = self.user_service.system_get_user_by_email(email)
+
+            if self.hash_service.check_password_hash(user.password, password):
+                return user
+            else:
+                raise AuthPasswordNotMatchException(error="invalid_credentials", detail={"password": ["Invalid credentials"]})
+        except UserNotFoundException:
+            raise AuthUserWithLoginNotExistException(error="invalid_credentials", detail={"password": ["Invalid credentials"]})
+
+
+    def system_send_email_verification_message(self, email) -> None:
+        try:
+            self.user_service.system_get_user_by_email(email)
+
+            raise AuthEmailAlreadyTakenException(error="email_exists", detail={"email": ["User with email already exists"]})
+        except UserNotFoundException:
+            pass
+
+        code = self.verification_code_service.get_email_verification_code(email)
+
+        self.email_service.send_email(
+            "Подтверждение регистрации",
+            recipients=[email],
+            text=render_template("email/verify_email.txt", code=code),
+            html=render_template("email/verify_email.html", code=code)
+        )
+
+    def system_send_recovery_message(self, email: str) -> None:
+        try:
+            user = self.user_service.system_get_user_by_email(email)
+
+            token = self.jwt_service.encode_jwt({"user_id": user.id, "exp": time.time() + 600})
+
+            self.email_service.send_email(
+                "Восстановление пароля",
+                recipients=[email],
+                text=render_template("email/recovery_password.txt", base_url=self.frontend_url, token=token),
+                html=render_template("email/recovery_password.html", base_url=self.frontend_url, token=token)
+            )
+        except UserNotFoundException:
+            raise AuthUserWithEmailNotExistException("User with this email does not exist.")
+    
+    
+    def system_recovery_password(self, recovery_dto: AuthRecoveryDTO) -> None:
+        try:
+            token = recovery_dto.token
+            new_password = recovery_dto.new_password
+
+            data = self.jwt_service.decode_jwt(token)
+
+            user_id = data.get("user_id")
+            
+            user = self.user_service.system_get_user_by_id(user_id)
+
+            new_password_hash = self.hash_service.generate_password_hash(new_password)
+
+            self.user_service.system_update_user(user, {"password": new_password_hash})
+        except AuthJWTTokenExpiredException:
+            raise AuthRecoveryTokenExpired(error="token_expired")
+        
+    def process_yandex_oauth(self, data: AuthYandexOauthDTO) -> tuple[User, bool, AuthYandexOauthUserDTO]:
+        
+        yandex_user_data = self.yandex_oauth_service.get_user_info(data)
+        yandex_user_id = yandex_user_data.id
+
+        user = self.auth_repo.get_user_by_oauth(yandex_user_id, OauthTypeEnum.YANDEX)
+        created = False
+
+        if user is None:
+            with self.db_transaction:
+                user = User(
+                    email=None,
+                    password=None
+                )
+
+                user = self.user_repo.create_user(user)
+
+                self.db_transaction.flush()
+
+                created = True
+
+                oauth = Oauth(
+                    user_id = user.id,
+                    oauth_user_id=yandex_user_id,
+                    oauth_type_id=OauthTypeEnum.YANDEX.value
+                )
+                self.auth_repo.add_oauth(oauth)
+
+        return user, created, yandex_user_data
+    
+    def user_change_password(self, user, old_password, new_password):
+        
+        if not self.hash_service.check_password_hash(user.password, old_password):
+            raise AuthPasswordNotMatchException(error="wrong_password")
+        
+        with self.db_transaction:
+            self.user_repo.update_user(
+                user, {
+                    "password": self.hash_service.generate_password_hash(new_password)
+                }
+            )
+
+        

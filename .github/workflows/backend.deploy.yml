@@ -1,0 +1,151 @@
+on:
+    workflow_call:
+        inputs:
+            environment:
+                required: true
+                type: string
+                description: What environment use to deploy
+            image-tag:
+                required: true
+                type: string
+        secrets:
+            YC_SA_ID:
+                required: true
+            SSH_HOST:
+                required: true
+            SSH_PORT:
+                required: true
+            SSH_USER:
+                required: true
+            SSH_PRIVATE_KEY:
+                required: true
+            YANDEX_OAUTH_CLIENT_SECRET:
+                required: true
+            DEPLOY_DATABASE_URI:
+                required: true
+            DEPLOY_CACHE_URI:
+                required: true
+            DEPLOY_SECRET_KEY:
+                required: true
+            DEPLOY_MAIL_SERVER:
+                required: true
+            DEPLOY_MAIL_PORT:
+                required: true
+            DEPLOY_MAIL_USERNAME:
+                required: true
+            DEPLOY_MAIL_PASSWORD:
+                required: true
+
+jobs:
+    deploy:
+        runs-on: ubuntu-latest
+        environment: ${{ inputs.environment }}
+        steps:
+        - name: Clone repo
+          uses: actions/checkout@v3
+
+        - name: Get Yandex Cloud IAM token
+          id: get-iam-token
+          uses: docker://ghcr.io/yc-actions/yc-iam-token-fed:1.0.0
+          with:
+            yc-sa-id: ${{ secrets.YC_SA_ID}}
+
+        - name: Copy docker compose file into host
+          uses: appleboy/scp-action@v1
+          with:
+            host: ${{ secrets.SSH_HOST }}
+            username: ${{ secrets.SSH_USER }}
+            key: ${{ secrets.SSH_PRIVATE_KEY }}
+            port: ${{ secrets.SSH_PORT }}
+            source: "backend/${{ vars.COMPOSE_FOLDER_PATH }}${{ vars.COMPOSE_FILENAME }}"
+            target: ${{ vars.COMPOSE_DESTINATION_PATH }}
+            strip_components: 2
+            debug: true
+
+
+        - name: Start project
+          uses: appleboy/ssh-action@v1
+          env:
+            YC_IAM_TOKEN: ${{ steps.get-iam-token.outputs.token }}
+            CR_REGISTRY: ${{ vars.CR_REGISTRY }}
+            CR_REPOSITORY: ${{ vars.CR_REPOSITORY }}
+            IMAGE_TAG: ${{ inputs.image-tag }}
+            DOCKER_COMPOSE_PATH: ${{ vars.COMPOSE_DESTINATION_PATH }}
+            DOCKER_COMPOSE_FILENAME: ${{ vars.COMPOSE_FILENAME }}
+            SECRET_KEY: ${{ secrets.DEPLOY_SECRET_KEY }}
+            DATABASE_URI: ${{ secrets.DEPLOY_DATABASE_URI }}
+            CACHE_URI: ${{ secrets.DEPLOY_CACHE_URI }}
+            MAIL_SERVER: ${{ secrets.DEPLOY_MAIL_SERVER }}
+            MAIL_PORT: ${{ secrets.DEPLOY_MAIL_PORT }}
+            MAIL_USERNAME: ${{ secrets.DEPLOY_MAIL_USERNAME }}
+            MAIL_PASSWORD: ${{ secrets.DEPLOY_MAIL_PASSWORD }}
+            MAIL_DEFAULT_SENDER: ${{ vars.MAIL_DEFAULT_SENDER }}
+            COOKIE_DOMAIN: ${{ vars.COOKIE_DOMAIN }}
+            ACCESS_COOKIE_NAME: ${{ vars.ACCESS_COOKIE_NAME }}
+            REFRESH_COOKIE_NAME: ${{ vars.REFRESH_COOKIE_NAME }}
+            ACCESS_CSRF_COOKIE_NAME: ${{ vars.ACCESS_CSRF_COOKIE_NAME }}
+            REFRESH_CSRF_COOKIE_NAME: ${{ vars.REFRESH_CSRF_COOKIE_NAME }}
+            AUTH_PROFILE_COOKIE_NAME: ${{ vars.AUTH_PROFILE_COOKIE_NAME }}
+            UPLOAD_DIR: ${{ vars.UPLOAD_DIR }}
+            LOG_DIR: ${{ vars.LOG_DIR }}
+            CDN_URL: ${{ vars.CDN_URL }}
+            DOMAIN: ${{ vars.DOMAIN }}
+            FRONTEND_URL: ${{ vars.FRONTEND_URL }}
+            PORT: ${{ vars.PORT }}
+            PROJECT_NAME: ${{ vars.PROJECT_NAME}}
+            YANDEX_OAUTH_CLIENT_SECRET: ${{secrets.YANDEX_OAUTH_CLIENT_SECRET}}
+            YANDEX_OAUTH_LOGIN_URL: ${{vars.YANDEX_OAUTH_LOGIN_URL}}
+            YANDEX_AVATARS_URL: ${{vars.YANDEX_AVATARS_URL}}
+            YANDEX_AVATARS_SIZE: ${{vars.YANDEX_AVATARS_SIZE}}
+          with:
+            host: ${{ secrets.SSH_HOST }}
+            username: ${{ secrets.SSH_USER }}
+            key: ${{ secrets.SSH_PRIVATE_KEY }}
+            port: ${{ secrets.SSH_PORT }}
+            envs:
+                YC_IAM_TOKEN,
+                CR_REGISTRY,
+                CR_REPOSITORY,
+                IMAGE_TAG,
+                SECRET_KEY,
+                DATABASE_URI,
+                CACHE_URI,
+                MAIL_SERVER,
+                MAIL_PORT,
+                MAIL_USERNAME,
+                MAIL_DEFAULT_SENDER,
+                MAIL_PASSWORD,
+                COOKIE_DOMAIN,
+                ACCESS_COOKIE_NAME,
+                REFRESH_COOKIE_NAME,
+                ACCESS_CSRF_COOKIE_NAME,
+                REFRESH_CSRF_COOKIE_NAME,
+                AUTH_PROFILE_COOKIE_NAME,
+                UPLOAD_DIR,
+                LOG_DIR,
+                CDN_URL,
+                DOMAIN,
+                FRONTEND_URL,
+                DOCKER_COMPOSE_PATH,
+                DOCKER_COMPOSE_FILENAME,
+                PORT,
+                PROJECT_NAME,
+                YANDEX_OAUTH_CLIENT_SECRET,
+                YANDEX_OAUTH_LOGIN_URL,
+                YANDEX_AVATARS_URL,
+                YANDEX_AVATARS_SIZE
+            script: |
+                echo $YC_IAM_TOKEN|docker login \
+                --username iam \
+                --password-stdin \
+                cr.yandex
+
+                docker pull cr.yandex/$CR_REGISTRY/$CR_REPOSITORY:$IMAGE_TAG
+
+                cd $DOCKER_COMPOSE_PATH
+
+                docker compose -f $DOCKER_COMPOSE_FILENAME -p $PROJECT_NAME down
+
+                docker compose -f $DOCKER_COMPOSE_FILENAME -p $PROJECT_NAME up -d
+
+                docker image prune -a -f

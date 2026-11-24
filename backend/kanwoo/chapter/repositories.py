@@ -1,0 +1,97 @@
+from sqlalchemy import select, exists, func, or_
+
+from kanwoo.entities import Privacy
+from kanwoo.models import cursor_paginate
+from kanwoo.repositories import BaseRepository
+
+from .models import Chapter, Page
+
+class ChapterRepository(BaseRepository):
+
+    def system_get_chapter_by_id(self, chapter_id):
+        return self.db_session.execute(select(Chapter).filter_by(chapter_id)).scalar()
+
+    def get_chapter_by_id(self, chapter_id: int, public=True):
+        stmt = (select(Chapter)
+            .where(
+                Chapter.id == chapter_id,
+            )
+        )
+
+        if public:
+            stmt = stmt.where(
+                or_(
+                    Chapter.privacy_id == Privacy.PUBLIC.value,
+                    Chapter.privacy_id == Privacy.BY_LINK.value
+                ),
+            )
+
+        return self.db_session.execute(stmt).scalar_one_or_none()
+
+    def get_chapter_by_id_from_user(self, profile, chapter_id, by_link=False):
+        return self.db_session.execute(
+            select(Chapter)
+            .filter(
+                Chapter.id == chapter_id, 
+                Chapter.can_view(profile, by_link) == True
+            )
+        ).scalar()
+
+    def get_translation_chapters(self, translation_id):
+        return self.db_session.execute(
+            select(Chapter)
+            .filter_by(
+                translation_id=translation_id
+            )
+            .order_by(Chapter.chapter.asc(), Chapter.extra_number.asc().nulls_first())
+        ).scalars().all()
+    
+    def check_chapter_with_number(self, translation_id, chapter_number, extra_number):
+        return self.db_session.execute(select(select(Chapter).where(
+            Chapter.translation_id==translation_id, 
+            Chapter.chapter==chapter_number,
+            Chapter.extra_number==extra_number
+        ).exists())).scalar()
+    
+    def create_chapter(self, chapter: Chapter):
+        chapter.add(commit=True)
+
+        return chapter
+    
+    def update_chapter(self, chapter: Chapter, data: dict):
+        chapter.update(data, commit=True)
+
+        return chapter
+    
+    def delete_page(self, page: Page):
+        page.is_deleted = True
+
+    def create_page(self, chapter: Chapter, page: Page):
+        chapter.pages.append(page)
+
+    def delete_chapter(self, chapter: Chapter):
+        for p in chapter.pages:
+            p.is_deleted = True
+            
+        chapter.delete()
+
+    def get_last_added_chapters(self, actor, cursor):
+
+        q = select(Chapter).order_by(Chapter.created_at.desc())
+
+        return cursor_paginate(
+            Chapter,
+            self.db_session,
+            q,
+            cursor=cursor,
+            limit=10,
+            direction="desc"
+        )
+
+    def get_translation_last_chapter_number(self, translation_id):
+        stmt = (
+            select(func.coalesce(func.max(Chapter.chapter), 0))
+            .where(Chapter.translation_id == translation_id)
+        )
+
+        return self.db_session.execute(stmt).scalar()

@@ -1,0 +1,41 @@
+name: frontend stage
+
+on:
+  push:
+    branches:
+      - develop
+    paths:
+      - 'frontend/**'
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  test:
+    uses: ./.github/workflows/frontend.run-tests.yml
+
+  build:
+    needs: test
+    uses: ./.github/workflows/frontend.build.yml
+    with:
+      image-tag: frontend-test_${{ github.sha }}
+      environment: frontend-test
+    secrets:
+      YC_SA_ID: ${{ secrets.YC_SA_ID }}
+
+
+  deploy:
+    needs: build
+    uses: ./.github/workflows/frontend.deploy.yml
+    with:
+      environment: frontend-test
+      image-tag: frontend-test_${{ github.sha }}
+    secrets:
+      YC_SA_ID: ${{ secrets.YC_SA_ID }}
+      SSH_HOST: ${{ secrets.SSH_HOST }}
+      SSH_PORT: ${{ secrets.SSH_PORT }}
+      SSH_USER: ${{ secrets.SSH_USER }}
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}

@@ -1,0 +1,41 @@
+# Общие
+.env
+.DS_Store
+
+# Для backend
+/backend/**/.env
+/backend/**/.venv/
+/backend/**/.idea/
+/backend/**/__pycache__/
+/backend/**/instance/
+/backend/kanwoo/static/
+/backend/**/log/
+/backend/**/logs/
+/backend/**/custom_migration.py
+/backend/**/create_database.py
+/backend/**/drop_database.py
+
+# Для frontend
+/frontend/node_modules
+/frontend/.pnp
+/frontend/**/.pnp.*
+/frontend/.yarn/*
+!/frontend/.yarn/patches
+!/frontend/.yarn/plugins
+!/frontend/.yarn/releases
+!/frontend/.yarn/versions
+/frontend/coverage
+/frontend/.next/
+/frontend/out/
+/frontend/build
+/frontend/**/*.pem
+/frontend/**/npm-debug.log*
+/frontend/**/yarn-debug.log*
+/frontend/**/yarn-error.log*
+/frontend/**/.pnpm-debug.log*
+/frontend/**/.env*
+/frontend/**/.vercel
+/frontend/**/*.tsbuildinfo
+/frontend/**/next-env.d.ts
+/frontend/**/certificates
+/frontend/legacy

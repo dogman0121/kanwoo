@@ -1,0 +1,329 @@
+from typing import Optional, List
+from typing_extensions import override
+from datetime import datetime, timezone
+
+from sqlalchemy import Integer, Text, ForeignKey, DateTime, Column, Table, String, select, and_, or_, func
+from sqlalchemy.ext.hybrid import hybrid_property, hybrid_method
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from kanwoo import db
+from kanwoo.permissions import ADMIN_ROLE
+from kanwoo.entities import  Privacy
+from kanwoo.models import BaseModel, FileModelMixin
+from kanwoo.moderation.models import MangaModerationStatus
+from kanwoo.moderation.entity import ModerationStatus
+from kanwoo.profile.models import Profile
+from kanwoo.profile.entity import AnonymousProfile
+
+
+manga_genres = Table(
+    "manga_genre_relation",
+    db.metadata,
+    Column("genre_id", Integer, db.ForeignKey("manga_genre.id")),
+    Column("manga_id", Integer, db.ForeignKey("manga.id")),
+)
+
+class Genre(BaseModel):
+    __tablename__ = "manga_genre"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(20), nullable=False)
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "name": self.name,
+        }
+
+class Type(BaseModel):
+    __tablename__ = "manga_type"
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(20), nullable=False)
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "name": self.name,
+        }
+
+class Status(BaseModel):
+    __tablename__ = "manga_status"
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(20), nullable=False)
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "name": self.name,
+        }
+
+class Adult(BaseModel):
+    __tablename__ = "adult"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(20), nullable=False)
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "name": self.name,
+        }
+
+class NameTranslation(BaseModel):
+    __tablename__ = "manga_name_translation"
+
+    manga_id: Mapped[int] = mapped_column(Integer, ForeignKey("manga.id"), primary_key=True,
+                                          nullable=False)
+    lang_id: Mapped[int] = mapped_column(ForeignKey("language.id"), nullable=True)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+
+    lang: Mapped["Language"] = relationship("Language")
+
+    def to_dict(self):
+        return {
+            "lang": self.lang,
+            "name": self.name,
+        }
+
+class PosterFile(BaseModel, FileModelMixin):
+    __tablename__ = "manga_poster_file"
+    uuid: Mapped[str] = mapped_column(primary_key=True)
+    type: Mapped[str] = mapped_column(nullable=True)
+    poster_uuid: Mapped[str] = mapped_column(ForeignKey("manga_poster.uuid", ondelete="CASCADE"), nullable=False)
+
+    poster: Mapped["Poster"] = relationship("Poster", back_populates="files")
+
+class Poster(BaseModel):
+    __tablename__ = "manga_poster"
+
+    uuid: Mapped[str] = mapped_column(primary_key=True)
+    is_deleted: Mapped[bool] = mapped_column(nullable=True, default=False)
+
+    files: Mapped[list["PosterFile"]] = relationship(
+        primaryjoin=("and_(Poster.uuid==PosterFile.poster_uuid, PosterFile.is_deleted==False)"),
+        uselist=True, 
+        back_populates="poster"
+        )
+    manga: Mapped["Manga"] = relationship(back_populates="poster")
+
+    def _get_size(self, size):
+        for f in self.files:
+            if f.type == size:
+                return f
+        return None
+
+    @hybrid_property
+    def thumbnail(self): return self._get_size("thumbnail")
+
+    @hybrid_property
+    def small(self): return self._get_size("small")
+
+    @hybrid_property
+    def medium(self): return self._get_size("medium")
+
+    @hybrid_property
+    def large(self): return self._get_size("large")
+
+    @hybrid_property
+    def original(self): return self._get_size("original")
+
+    @override
+    def delete(self):
+        self.is_deleted = True
+        for file in self.files:
+            file.delete()
+
+class Background(BaseModel, FileModelMixin):
+    __tablename__ = "manga_background"
+
+    manga: Mapped["Manga"] = relationship(back_populates="background")
+
+class PromoName(BaseModel, FileModelMixin):
+    __tablename__ = "manga_promo_name"
+
+    manga: Mapped["Manga"] = relationship(back_populates="promo_name")
+
+class PromoLogo(BaseModel, FileModelMixin):
+    __tablename__ = "manga_promo_logo"
+
+    manga: Mapped["Manga"] = relationship(back_populates="promo_logo")
+
+class PromoBackground(BaseModel, FileModelMixin):
+    __tablename__ = "manga_promo_background"
+
+    manga: Mapped["Manga"] = relationship(back_populates="promo_background")
+
+class Manga(BaseModel):
+    __tablename__ = 'manga'
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, nullable=False, unique=True)
+    slug: Mapped[str] = mapped_column(unique=True, nullable=False)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=True)
+    type_id: Mapped[Optional[int]] = mapped_column(ForeignKey("manga_type.id"), nullable=True)
+    status_id: Mapped[Optional[int]] = mapped_column(ForeignKey("manga_status.id"), nullable=True)
+    year: Mapped[Optional[int]] = mapped_column(nullable=True)
+    adult_id: Mapped[Optional[int]] = mapped_column(ForeignKey("adult.id"), nullable=True)
+    poster_uuid: Mapped[str] = mapped_column(ForeignKey("manga_poster.uuid", ondelete="SET NULL"), nullable=True)
+    background_uuid: Mapped[str] = mapped_column(ForeignKey("manga_background.uuid", ondelete="SET NULL"), nullable=True)
+    promo_name_uuid: Mapped[str] = mapped_column(ForeignKey("manga_promo_name.uuid", ondelete="SET NULL"), nullable=True)
+    promo_logo_uuid: Mapped[str] = mapped_column(ForeignKey("manga_promo_logo.uuid", ondelete="SET NULL"), nullable=True)
+    promo_background_uuid: Mapped[str] = mapped_column(ForeignKey("manga_promo_background.uuid", ondelete="SET NULL"), nullable=True)
+    creator_id: Mapped[int] = mapped_column(ForeignKey("profile.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, 
+        default=lambda: datetime.now(timezone.utc), nullable=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        default=lambda: datetime.now(timezone.utc), 
+        onupdate=lambda: datetime.now(timezone.utc), 
+        nullable=True
+    )
+    author_id: Mapped[int] = mapped_column(ForeignKey("profile.id"), nullable=True)
+    privacy_id: Mapped[int] = mapped_column(ForeignKey("privacy.id"), nullable=True)
+
+    privacy: Mapped["Privacy"] = relationship("Privacy")
+    collections: Mapped[List["Collection"]] = relationship(
+        primaryjoin="Manga.id == CollectionManga.manga_id",
+        secondary="collection_manga",
+        secondaryjoin="CollectionManga.collection_id == Collection.id",
+        back_populates="manga"
+    )
+    name_translations: Mapped[list["NameTranslation"]] = relationship(
+        cascade="save-update, merge, delete, delete-orphan")
+    type: Mapped["Type"] = relationship()
+    status: Mapped["Status"] = relationship()
+    background: Mapped["Background"] = relationship(
+        primaryjoin="and_(Manga.background_uuid == Background.uuid, Background.is_deleted == False)",
+        back_populates="manga",
+        foreign_keys=[background_uuid]
+    )
+    poster: Mapped[Optional["Poster"]] = relationship(
+        primaryjoin="and_(Manga.poster_uuid == Poster.uuid, Poster.is_deleted == False)",
+        back_populates="manga",
+        foreign_keys=[poster_uuid]
+    )
+    promo_name: Mapped["PromoName"] = relationship(
+        primaryjoin="and_(Manga.promo_name_uuid == PromoName.uuid, PromoName.is_deleted == False)",
+        back_populates="manga",
+        foreign_keys=[promo_name_uuid]
+    )
+    promo_background: Mapped["PromoBackground"] = relationship(
+        primaryjoin="and_(Manga.promo_background_uuid == PromoBackground.uuid, PromoBackground.is_deleted == False)",
+        back_populates="manga",
+        foreign_keys=[promo_background_uuid]
+    )
+    promo_logo: Mapped["PromoLogo"] = relationship(
+        primaryjoin="and_(Manga.promo_logo_uuid == PromoLogo.uuid, PromoLogo.is_deleted == False)",
+        back_populates="manga",
+        foreign_keys=[promo_logo_uuid]
+    )
+    adult: Mapped["Adult"] = relationship()
+    genres: Mapped[list["Genre"]] = relationship("Genre", secondary="manga_genre_relation")
+    creator: Mapped["Profile"] = relationship("Profile", foreign_keys=[creator_id])
+    author: Mapped["Profile"] = relationship("Profile", foreign_keys=[author_id])
+    translations: Mapped[list["Translation"]] = relationship("Translation", uselist=True, back_populates="manga")
+    moderation_history: Mapped[list[MangaModerationStatus]] = relationship(
+        primaryjoin="Manga.id==MangaModerationStatus.manga_id",
+        order_by=MangaModerationStatus.created_at.desc(),
+        viewonly=True
+    )
+
+    @hybrid_property
+    def moderation_status(self):
+        moderation_history = self.moderation_history
+        if moderation_history:
+            return moderation_history[0]
+        return None
+
+    @hybrid_property
+    def moderation_status_type_id(self):
+        moderation_history = self.moderation_history
+        if moderation_history:
+            return moderation_history[0].id
+        return None
+    
+    @moderation_status_type_id.expression
+    def moderation_status_type_id(cls):
+        subq = (
+            select(MangaModerationStatus.status_type_id)
+            .where(MangaModerationStatus.manga_id == cls.id)
+            .order_by(MangaModerationStatus.created_at.desc())
+            .limit(1).scalar_subquery()
+        )
+        return subq
+
+    
+    @hybrid_method
+    def can_view(self, profile: Profile | AnonymousProfile, by_link=False):
+        if isinstance(profile, Profile) and profile.role >= ADMIN_ROLE:
+            return True
+        if isinstance(profile, Profile) and profile.id:
+            if self.author_id == profile.id: return True
+        if self.moderation_status_type_id != ModerationStatus.APPROVED.value:
+            return False
+        if self.privacy_id == Privacy.PUBLIC.value: 
+            return True
+        if self.privacy_id == Privacy.PRIVATE.value and by_link: 
+            return True
+
+        return False
+ 
+    @can_view.expression
+    def can_view(self, profile: Optional[Profile], by_link=False):
+        if isinstance(profile, Profile):
+            return or_(
+                profile.role >= ADMIN_ROLE,
+                self.creator_id == profile.id, # Пользователь - это создатель
+                self.author_id == profile.id, # Пользователь - это автор
+                and_(self.privacy_id == Privacy.BY_LINK.value, by_link == True),
+                and_(
+                    self.moderation_status_type_id == ModerationStatus.APPROVED.value,
+                    self.privacy_id == Privacy.PUBLIC.value, # Публичная манга
+                )
+            )
+        
+        return and_(
+            self.moderation_status_type_id == ModerationStatus.APPROVED.value,
+            or_(
+                self.privacy_id == Privacy.PUBLIC.value, # Публичная манга
+                and_(self.privacy_id == Privacy.BY_LINK.value, by_link == True) # Доступ по ссылке 
+            )
+        )
+
+    @hybrid_property
+    def saves(self):
+        return len(self.collections)
+
+    @saves.expression
+    def saves(self):
+        return (
+            select(
+                func.count("*"))
+                .join("CollectionManga", "Manga.id == CollectionManga.manga_id"
+            ).filter(Manga.id == self.id).subquery()
+        )
+
+class MangaSuggestion(BaseModel):
+    __tablename__ = "manga_suggestion"
+
+    id: Mapped[int] = mapped_column(autoincrement=True, primary_key=True)
+    name: Mapped[str] = mapped_column()
+    link: Mapped[str] = mapped_column()
+    comment: Mapped[str] = mapped_column(nullable=True)
+    creator_id: Mapped[int] = mapped_column(ForeignKey("profile.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda x: datetime.now())
+    resolver_id: Mapped[int] = mapped_column(ForeignKey("profile.id"), nullable=True)
+    resolved_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+
+    creator: Mapped["Profile"] = relationship(foreign_keys=[creator_id])
+
+    resolver: Mapped["Profile"] = relationship(foreign_keys=[resolver_id])
+
+
+class MangaView(BaseModel):
+    __tablename__ = "manga_view"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    manga_id: Mapped[int] = mapped_column(ForeignKey("manga.id"), unique=True)
+    views: Mapped[int] = mapped_column(default=1)

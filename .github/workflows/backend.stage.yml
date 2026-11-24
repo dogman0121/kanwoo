@@ -1,0 +1,49 @@
+name: backend stage
+
+on:
+  push:
+    branches:
+      - develop
+    paths:
+      - 'backend/**'
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  test:
+    uses: ./.github/workflows/backend.run-tests.yml
+
+  build:
+    needs: test
+    uses: ./.github/workflows/backend.build.yml
+    with:
+      environment: backend-test
+      image-tag: backend-test_${{ github.sha }}
+    secrets:
+      YC_SA_ID: ${{ secrets.YC_SA_ID }}
+
+
+  deploy:
+    needs: build
+    uses: ./.github/workflows/backend.deploy.yml
+    with:
+      environment: backend-test
+      image-tag: backend-test_${{ github.sha }}
+    secrets:
+      YC_SA_ID: ${{ secrets.YC_SA_ID }}
+      SSH_HOST: ${{ secrets.SSH_HOST }}
+      SSH_PORT: ${{ secrets.SSH_PORT }}
+      SSH_USER: ${{ secrets.SSH_USER }}
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      YANDEX_OAUTH_CLIENT_SECRET: ${{ secrets.YANDEX_OAUTH_CLIENT_SECRET }}
+      DEPLOY_DATABASE_URI: ${{ secrets.TEST_DATABASE_URI }}
+      DEPLOY_CACHE_URI: ${{ secrets.TEST_CACHE_URI }}
+      DEPLOY_SECRET_KEY: ${{ secrets.TEST_SECRET_KEY }}
+      DEPLOY_MAIL_SERVER: ${{ secrets.TEST_MAIL_SERVER }}
+      DEPLOY_MAIL_PORT: ${{ secrets.TEST_MAIL_PORT }}
+      DEPLOY_MAIL_USERNAME: ${{ secrets.TEST_MAIL_USERNAME }}
+      DEPLOY_MAIL_PASSWORD: ${{ secrets.TEST_MAIL_PASSWORD }}

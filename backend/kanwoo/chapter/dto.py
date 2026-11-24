@@ -1,0 +1,34 @@
+from typing import Optional, List, Dict
+
+from dataclasses import dataclass
+
+from kanwoo.entities import File
+from kanwoo.manga.models import Manga
+from kanwoo.translation.models import Translation
+
+@dataclass
+class CreateChapterDTO:
+    chapter: int
+    privacy_id: int
+    name: Optional[str]
+    pages: List[File]
+    pages_order: List[str]
+    extra_number: Optional[int]
+
+@dataclass
+class UpdateChapterDTO:
+    chapter: int
+    privacy_id: int
+    name: Optional[str]
+    pages: List[File]
+    pages_order: List[str]
+    extra_number: Optional[int]
+
+@dataclass
+class ChapterMetadataDTO:
+    pages: List[Dict[str, int]]
+
+@dataclass
+class ChapterContextDTO:
+    manga: Optional[Manga]
+    translation: Optional[Translation]

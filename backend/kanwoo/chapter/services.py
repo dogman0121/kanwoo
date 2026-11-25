@@ -2,10 +2,11 @@ from typing import TYPE_CHECKING
 import time
 from kanwoo import db
 from kanwoo.file_storage import FileStorageMixin
-from kanwoo.uuid import UUID
+from kanwoo.uuid import UUIDGenerator
 from kanwoo.image import ImageServiceFactory
 from kanwoo.entities import File
 from kanwoo.database import DBTransaction
+from kanwoo.unit_of_work import UnitOfWork
 from kanwoo.frontend_metadata import FrontendMetadataServiceMixin, FrontendMetadataDTO, FrontentMetadataResouceTypeEnum
 
 from .repositories import ChapterRepository
@@ -31,7 +32,7 @@ class ChapterPageService:
 
     def create_page(self, chapter, page_file, order):
         page_filename, _ = page_file.filename.rsplit(".", 1)
-        page_uuid = UUID.generate_uuid()
+        page_uuid = UUIDGenerator.generate_uuid()
 
         image_service = self.image_service_factory.create(page_file, output_format="WEBP")
         
@@ -60,12 +61,14 @@ class ChapterService:
             db_transaction: DBTransaction,
             chapter_page_service: ChapterPageService, 
             chapter_repo: ChapterRepository,
-            chapter_policy: ChapterPolicy
+            chapter_policy: ChapterPolicy,
+            unit_of_work: UnitOfWork,
         ):
         self.chapter_repo = chapter_repo
         self.chapter_page_service = chapter_page_service
         self.chapter_policy = chapter_policy
         self.db_transaction = db_transaction
+        self.unit_of_work = unit_of_work
 
     def _delete_chapter(self, chapter: Chapter):
         self.chapter_repo.delete_chapter(chapter)
@@ -91,7 +94,7 @@ class ChapterService:
         if chapter_with_same_number_exists:
             raise ChapterWithNumberAlreadyExists()
         
-        with self.db_transaction:
+        with self.unit_of_work:
             chapter = Chapter(
                 name=data.name,
                 chapter=data.chapter,

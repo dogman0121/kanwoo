@@ -17,6 +17,7 @@ from kanwoo.reading_progress.containers import ReadingProgressContainer
 from kanwoo.search.containers import SearchContainer
 from kanwoo.collection.containers import CollectionContainer
 from kanwoo.database import DBTransaction
+from kanwoo.unit_of_work import UnitOfWork
 from kanwoo.settings.containers import SettingsContainer
 from kanwoo.comment.containers import CommentContainer
 from kanwoo.post.containers import PostContainer
@@ -30,6 +31,8 @@ class AppContainer(containers.DeclarativeContainer):
         DBTransaction,
         db_session=db_session
     )
+
+    unit_of_work = providers.Factory(UnitOfWork, db_session=db_session)
 
     file_storage = providers.Dependency()
     cache = providers.Dependency()
@@ -103,7 +106,8 @@ class AppContainer(containers.DeclarativeContainer):
         image_service_factory=image_service_factory,
         file_storage=file_storage,
         db_session=db_session,
-        db_transaction=db_transaction
+        db_transaction=db_transaction,
+        unit_of_work=unit_of_work,
     )
 
     reading_progress_container = providers.Container(

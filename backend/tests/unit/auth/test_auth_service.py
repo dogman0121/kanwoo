@@ -60,7 +60,7 @@ def test_register_user(app, container: AppContainer, faker, run):
         auth_service = container.auth_container.auth_service()
 
         with app.app_context():
-            registred_user = auth_service.system_register_user(register_dto)
+            registred_user = auth_service.register_user(register_dto)
 
     assert registred_user.email == email
     assert registred_user.password == password

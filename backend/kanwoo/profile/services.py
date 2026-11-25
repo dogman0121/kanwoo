@@ -2,7 +2,7 @@ from pytils.translit import slugify
 
 from kanwoo.image import ImageServiceFactory
 from kanwoo.file_storage import FileStorageMixin
-from kanwoo.uuid import UUID
+from kanwoo.uuid import UUIDGenerator
 from kanwoo.database import DBTransaction
 
 from .dto import UpdateProfileDTO, CreateProfileDTO, ProfilePermissionDTO
@@ -32,7 +32,7 @@ class ProfileAvatarService:
         image_service = self.image_service_factory.create(avatar_file, "JPEG")
 
         avatar_resized_file = image_service.resize(self.AVATAR_SIZE)
-        avatar_uuid = UUID.generate_uuid()
+        avatar_uuid = UUIDGenerator.generate_uuid()
         avatar_path = self.__get_avatar_path(avatar_uuid, ".jpg")
 
         profile_avatar = ProfileAvatar(

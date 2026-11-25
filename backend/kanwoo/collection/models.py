@@ -90,7 +90,7 @@ class Collection(BaseModel):
     def preview(self):
         return list(map(lambda x: x.poster, self.manga))[:3]
     
-class CollectionManga(Base):
+class CollectionManga(BaseModel):
     __tablename__ = 'collection_manga'
 
     collection_id: Mapped[int] = mapped_column(ForeignKey("collection.id", ondelete="CASCADE"), primary_key=True)

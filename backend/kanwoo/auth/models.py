@@ -16,7 +16,7 @@ class Oauth(BaseModel):
     user: Mapped["User"] = relationship("User")
 
 
-class OauthType(Base):
+class OauthType(BaseModel):
     __tablename__ = "oauth_type"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)

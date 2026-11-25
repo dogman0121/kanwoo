@@ -1,6 +1,6 @@
 from typing import Optional
 
-from sqlalchemy import ForeignKey, and_, or_, select, func
+from sqlalchemy import ForeignKey, UniqueConstraint, and_, or_, select, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship, object_session, aliased
 from sqlalchemy.ext.hybrid import hybrid_property, hybrid_method
 
@@ -23,15 +23,18 @@ class Page(BaseModel, FileModelMixin):
 class ChapterPage(BaseModel):
     __tablename__ = "chapter_page"
 
-    chapter_id: Mapped[int] = mapped_column(ForeignKey("chapter.id"))
-    file_uuid: Mapped[int]
+
+    chapter_id: Mapped[int] = mapped_column(ForeignKey("chapter.id"), primary_key=True)
+    file_uuid: Mapped[int] = mapped_column(primary_key=True)
     width: Mapped[int] = mapped_column()
     height: Mapped[int] = mapped_column()
     order: Mapped[int] = mapped_column()
 
+CHAPTER_NUMBER_CONSTRAINT = "uq_chapter_translation_number"
 
 class Chapter(BaseModel):
     __tablename__ = "chapter"
+    
 
     id: Mapped[int] = mapped_column(autoincrement=True, primary_key=True)
     name: Mapped[str] = mapped_column(nullable=True)
@@ -62,6 +65,16 @@ class Chapter(BaseModel):
         secondary="translation",
         secondaryjoin="Translation.manga_id == Manga.id", 
         viewonly=True
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "translation_id",
+            "chapter",
+            "extra_number",
+            name=CHAPTER_NUMBER_CONSTRAINT,
+            postgresql_nulls_not_distinct=True,
+        ),
     )
 
     @hybrid_property

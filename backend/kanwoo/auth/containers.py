@@ -40,8 +40,6 @@ class AuthContainer(containers.DeclarativeContainer):
 
     hash_service = providers.Factory(
         HashService,
-        method="scrypt",
-        salt_length=16
     )
 
     verification_code_service = providers.Factory(

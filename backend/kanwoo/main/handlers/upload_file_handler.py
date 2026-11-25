@@ -1,2 +1,2 @@
-def upload_file_hander():
+def upload_file_handler():
     pass

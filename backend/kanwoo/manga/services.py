@@ -7,7 +7,7 @@ from kanwoo.profile.entity import AnonymousProfile
 from kanwoo.frontend_metadata import FrontendMetadataServiceMixin
 from kanwoo.file_storage import FileStorageMixin
 from kanwoo.database import DBTransaction
-from kanwoo.uuid import UUID
+from kanwoo.uuid import UUIDGenerator
 from kanwoo.image import ImageServiceFactory
 from kanwoo.entities import FileAction, File
 from kanwoo.moderation.services import ModerationService
@@ -82,7 +82,7 @@ class MangaMediaService:
                 uuid (str): unique identifier of saved image.
 
         """
-        file_uuid = UUID.generate_uuid()
+        file_uuid = UUIDGenerator.generate_uuid()
 
         img = image_service.resize(size)
 
@@ -91,7 +91,7 @@ class MangaMediaService:
         return file_uuid
     
     def set_poster(self, manga: Manga, poster_file: File):
-        poster_uuid = UUID.generate_uuid()
+        poster_uuid = UUIDGenerator.generate_uuid()
         poster = Poster(
             uuid=poster_uuid
         )

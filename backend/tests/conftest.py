@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 import pytest
 from faker import Faker
 
@@ -81,12 +83,17 @@ def authorized_client(app, client, profile_id, access_token, refresh_token, csrf
 def runner(app):
     return app.test_cli_runner()
 
+@dataclass(frozen=True)
+class UserFixture:
+    id: int
+    email: str
+
+
 @pytest.fixture()
 def user(app, container):
     hash_service = container.auth_container.hash_service()
 
     user = User(
-        id=1,
         email="test@test.com",
         password=hash_service.generate_password_hash("12345678")
     )
@@ -95,7 +102,7 @@ def user(app, container):
 
         db.session.commit()
 
-        return user
+        return UserFixture(id=user.id, email=user.email)
 
 @pytest.fixture()
 def user_id(user):
@@ -104,7 +111,6 @@ def user_id(user):
 @pytest.fixture()
 def profile_id(app, user_id):
     profile = Profile(
-        id=1,
         slug="test",
         name="test",
         about="test",

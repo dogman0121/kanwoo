@@ -39,6 +39,11 @@ class UnitOfWork:
         nesting_level_var.reset(token)
 
         if nesting_level_var.get() == 0:
+            if exc_type is not None:
+                self.db_session.rollback()
+                transaction_status.set(TransactionStatusEnum.ROLLED_BACK)
+                return False
+
             try:
                 self.db_session.commit()
                 transaction_status.set(TransactionStatusEnum.CLOSED)

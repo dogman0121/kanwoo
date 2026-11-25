@@ -132,11 +132,11 @@ def test_register_with_empty_password(container, client, faker, run):
         assert response.status_code == 400
 
 @pytest.mark.parametrize("run", range(5))
-def test_register_with_existed_email(container, client, user, faker, run):
+def test_register_with_existed_email(container, client, user, run):
     code = random.randint(100000, 999999)
-    login = faker.user_name()
-    email = user.email,
-    password = ""
+    login = "new_profile"
+    email = user.email
+    password = "test-password"
 
     mock_email_service = create_autospec(EmailService)
     mock_verification_code_service = create_autospec(VerificationCodeService)
@@ -157,13 +157,16 @@ def test_register_with_existed_email(container, client, user, faker, run):
         )
 
         assert response.status_code == 400
+        assert response.get_json()["error"]["detail"] == {
+            "email": ["Email already taken"]
+        }
 
 @pytest.mark.parametrize("run", range(5))
-def test_register_with_existed_login(container, client, user, faker, run):
+def test_register_with_existed_login(container, client, profile_id, run):
     code = random.randint(100000, 999999)
-    login = faker.user_name()
-    email = user.email
-    password = faker.password()
+    login = "test"
+    email = "new@example.com"
+    password = "test-password"
 
     mock_email_service = create_autospec(EmailService)
     mock_verification_code_service = create_autospec(VerificationCodeService)
@@ -183,4 +186,5 @@ def test_register_with_existed_login(container, client, user, faker, run):
             }
         )
 
-        assert response.status_code == 400
+        assert response.status_code == 200
+        assert response.get_json()["data"]["slug"] == "test1"

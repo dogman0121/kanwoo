@@ -22,6 +22,7 @@ def create_collection_handler(
     current_profile,
     collection_service: CollectionService = Provide[AppContainer.collection_container.collection_service]
 ):
+    print(current_profile)
     create_schema = CreateCollectionSchema().load(request.json)
 
     create_dto = CollectionCreateDTO(

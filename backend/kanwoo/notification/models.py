@@ -18,7 +18,7 @@ class NotificationSettings(BaseModel):
 
     profile: Mapped["Profile"] = relationship()
 
-class NotificationType(Base):
+class NotificationType(BaseModel):
     __tablename__ = "notification_type"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)

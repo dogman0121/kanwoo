@@ -1,10 +1,12 @@
 from sqlalchemy import select, exists, func, or_
+from sqlalchemy.exc import IntegrityError
 
 from kanwoo.entities import Privacy
 from kanwoo.models import cursor_paginate
 from kanwoo.repositories import BaseRepository
 
-from .models import Chapter, Page
+from .exceptions import ChapterWithNumberAlreadyExists
+from .models import CHAPTER_NUMBER_CONSTRAINT, Chapter, Page
 
 class ChapterRepository(BaseRepository):
 
@@ -54,7 +56,14 @@ class ChapterRepository(BaseRepository):
         ).exists())).scalar()
     
     def create_chapter(self, chapter: Chapter):
-        chapter.add(commit=True)
+        self.db_session.add(chapter)
+        try:
+            self.db_session.flush()
+        except IntegrityError as error:
+            diagnostics = getattr(error.orig, "diag", None)
+            if getattr(diagnostics, "constraint_name", None) == CHAPTER_NUMBER_CONSTRAINT:
+                raise ChapterWithNumberAlreadyExists() from error
+            raise
 
         return chapter
     

@@ -15,7 +15,9 @@ from kanwoo.user.entity import DebugUser
 
 @jwt_manager.user_identity_loader
 def user_identity_lookup(user):
-    return user.id
+    if isinstance(user, int):
+        return str(user)
+    return str(user.id)
 
 
 @jwt_manager.user_lookup_loader

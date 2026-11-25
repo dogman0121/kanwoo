@@ -3,7 +3,6 @@ from typing import Optional
 from kanwoo.database import DBTransaction
 from kanwoo.manga.models import Manga
 from kanwoo.profile.models import Profile
-from kanwoo.chapter.services import ChapterService
 
 from .permissions import TranslationPolicy
 from .dto import UpdateTranslationDTO, CreateTranslationDTO, TranslationContextDTO

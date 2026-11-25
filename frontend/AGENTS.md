@@ -1,25 +1,28 @@
-# Repository Guidelines
+# Работа с фронтендом
 
-## Project Structure
+## Структура проекта
 
-Kanwoo is a Next.js App Router frontend written in React and TypeScript. Routes, layouts, route handlers, and global CSS live in `src/app/`. Keep feature-specific code in `src/features/` and shared UI in `src/components/`. Look in `src/lib/api/` for shared API access and `src/lib/state/` for Redux state. Shared hooks, types, and utilities live in `src/hooks/`, `src/types/`, and `src/utils/`. Static assets, including the logo, robots file, and sitemap, live in `public/`.
+Фронтенд использует Next.js App Router, React и TypeScript. Маршруты, макеты, обработчики маршрутов и глобальные стили находятся в `src/app/`. Размещайте код отдельных функций в `src/features/`, общие компоненты интерфейса — в `src/components/`. Клиенты API находятся в `src/lib/api/`, состояние Redux — в `src/lib/state/`, общие хуки, типы и утилиты — в `src/hooks/`, `src/types/` и `src/utils/`. Статические ресурсы находятся в `public/`.
 
-## Development Commands
+Перед изменением кода сверяйся с [архитектурой фронтенда](docs/architecture.md) и [соглашениями по разработке](docs/agreements.md).
 
-- `npm ci --legacy-peer-deps` installs dependencies from the lockfile using the peer dependency behavior used by the Docker build.
-- `npm run dev` starts the Turbopack development server at `http://localhost:3000`.
-- `npm run build` compiles the production standalone build. Copy `public/` and `.next/static/` into `.next/standalone/` as shown in the Dockerfile, then run `node .next/standalone/server.js` from the repository root.
-- `npm test` runs Jest. Use `npm run test:watch` during development.
-- ESLint rules live in `eslint.config.mjs`. The current `npm run lint` script calls the removed `next lint` command, and direct ESLint execution currently errors while loading the configuration.
+## Команды разработки
 
-## Coding Style
+Выполняйте команды из `frontend/`.
 
-Use strict TypeScript and match the surrounding file's indentation. Many components use four spaces, while the existing test uses two. Use PascalCase for React components and their filenames, and prefix custom hooks with `use`. Use the `@/` alias for imports from `src/`. Follow nearby Material UI patterns when extending shared components.
+- `npm ci --legacy-peer-deps` устанавливает зависимости из lock-файла с тем же режимом обработки peer-зависимостей, что и Docker-сборка.
+- `npm run dev` запускает Turbopack на `http://localhost:3000`.
+- `npm run build` создаёт автономную сборку. Для локального запуска скопируйте `public/` в `.next/standalone/public/` и `.next/static/` в `.next/standalone/.next/static/`, затем выполните `node .next/standalone/server.js`.
+- Правила ESLint находятся в `eslint.config.mjs`. Скрипт `npm run lint` вызывает удалённую команду `next lint`. Прямой запуск ESLint также завершается ошибкой загрузки конфигурации.
 
-## Testing
+## Настройка окружения
 
-Jest uses `ts-jest` and jsdom. Add `*.test.ts` or `*.test.tsx` files in `src/__tests__/`. Use React Testing Library for component behavior. To run one file, use `npm test -- src/__tests__/sum.test.ts`. CI runs `npm test`, and Jest has no configured coverage threshold.
+Для локального запуска задай переменные в `frontend/.env.local`. При развёртывании переменные `NEXT_PUBLIC_*` передаются как аргументы сборки Docker и доступны в клиентском коде. Серверная переменная `API_URL` передаётся контейнеру через Docker Compose при запуске. Смотри `.github/workflows/frontend.build.yml` и `.github/workflows/frontend.deploy.yml`.
 
-## Commits and Pull Requests
+## Стиль кода
 
-Use short, imperative commit subjects that name the affected behavior, following examples such as `Fix catalog` and `Update bookmarks`. In pull requests, describe the change and how you verified it, link relevant issues, and include screenshots for visible UI changes.
+Используйте строгий TypeScript и соблюдайте отступы соседнего кода. Во многих компонентах используются четыре пробела, в существующем тесте — два. Именуйте React-компоненты и их файлы в `PascalCase`, начинайте имена пользовательских хуков с `use`. Используйте `@/` для импортов из `src/`. При расширении общих компонентов следуйте существующим примерам Material UI.
+
+## Тестирование
+
+Jest использует `ts-jest` и jsdom. Размещайте файлы `*.test.ts` и `*.test.tsx` в `src/__tests__/`. Проверяйте поведение компонентов через React Testing Library. Запускайте `npm test` для всей серии тестов, `npm run test:watch` для повторного запуска при изменениях или `npm test -- src/__tests__/sum.test.ts` для одного файла. CI выполняет `npm test`. Порог покрытия в Jest не задан.

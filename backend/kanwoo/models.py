@@ -62,6 +62,7 @@ class FileModel(BaseModel):
     is_deleted: Mapped[bool] = mapped_column(default=False)
     hash: Mapped[Optional[str]] = mapped_column(nullable=True)
     file_size: Mapped[Optional[int]] = mapped_column(nullable=True)
+    uploaded_by_profile_id: Mapped[Optional[int]] = mapped_column(nullable=True)
 
 
 class Privacy(BaseModel):

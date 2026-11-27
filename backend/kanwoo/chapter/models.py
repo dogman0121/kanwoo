@@ -1,14 +1,15 @@
 from typing import Optional
 
-from sqlalchemy import ForeignKey, UniqueConstraint, and_, or_, select, func
+from sqlalchemy import CheckConstraint, ForeignKey, ForeignKeyConstraint, UniqueConstraint, and_, or_, select, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship, object_session, aliased
 from sqlalchemy.ext.hybrid import hybrid_property, hybrid_method
 
 from kanwoo import db
-from kanwoo.models import BaseModel, FileModelMixin
+from kanwoo.models import BaseModel, FileModel, FileModelMixin
 from kanwoo.profile.models import Profile
 from kanwoo.profile.entity import AnonymousProfile
 from kanwoo.permissions import ADMIN_ROLE
+from .entity import ChapterPagesOptimizationStatus
 
 from datetime import datetime, timezone
 
@@ -23,12 +24,68 @@ class Page(BaseModel, FileModelMixin):
 class ChapterPage(BaseModel):
     __tablename__ = "chapter_page"
 
-
     chapter_id: Mapped[int] = mapped_column(ForeignKey("chapter.id"), primary_key=True)
-    file_uuid: Mapped[int] = mapped_column(primary_key=True)
+    file_uuid: Mapped[str] = mapped_column(ForeignKey("file.uuid"), primary_key=True)
     width: Mapped[int] = mapped_column()
     height: Mapped[int] = mapped_column()
     order: Mapped[int] = mapped_column()
+    is_orig: Mapped[bool] = mapped_column(server_default="false")
+    process_status_id: Mapped[int] = mapped_column(
+        server_default=str(ChapterPagesOptimizationStatus.COMPLETED.value)
+    )
+    file: Mapped[FileModel] = relationship(lazy="joined")
+    optimized_pages: Mapped[list["OptimizedPage"]] = relationship(
+        back_populates="source_page", cascade="all, delete-orphan", passive_deletes=True,
+        order_by="OptimizedPage.order", lazy="selectin",
+    )
+
+    __table_args__ = (
+        CheckConstraint("process_status_id IN (1, 2)", name="ck_chapter_page_process_status"),
+    )
+
+    @property
+    def uuid(self):
+        return self.file.uuid
+
+    @property
+    def path(self):
+        return self.file.path
+
+    @property
+    def orig_filename(self):
+        return self.file.filename
+
+class OptimizedPage(BaseModel):
+    __tablename__ = "optimized_page"
+
+    chapter_id: Mapped[int] = mapped_column(primary_key=True)
+    source_uuid: Mapped[str] = mapped_column(primary_key=True)
+    file_uuid: Mapped[str] = mapped_column(ForeignKey("file.uuid"), primary_key=True)
+    width: Mapped[int] = mapped_column()
+    height: Mapped[int] = mapped_column()
+    order: Mapped[int] = mapped_column()
+    file: Mapped[FileModel] = relationship(lazy="joined")
+    source_page: Mapped[ChapterPage] = relationship(back_populates="optimized_pages")
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["chapter_id", "source_uuid"], ["chapter_page.chapter_id", "chapter_page.file_uuid"],
+            name="fk_optimized_page_source", ondelete="CASCADE",
+        ),
+    )
+
+    @property
+    def uuid(self):
+        return self.file.uuid
+
+    @property
+    def path(self):
+        return self.file.path
+
+    @property
+    def orig_filename(self):
+        return self.file.filename
+
 
 CHAPTER_NUMBER_CONSTRAINT = "uq_chapter_translation_number"
 
@@ -50,13 +107,40 @@ class Chapter(BaseModel):
     )
     translation_id: Mapped[int] = mapped_column(ForeignKey("translation.id"), nullable=True)
     privacy_id: Mapped[int] = mapped_column(ForeignKey("privacy.id"), nullable=True)
-    
+
+    optimization_status_id: Mapped[int] = mapped_column(
+        server_default=str(ChapterPagesOptimizationStatus.COMPLETED.value)
+    )
 
     privacy: Mapped["Privacy"] = relationship()
-    pages: Mapped[list["Page"]] = relationship(
-        primaryjoin="and_(Chapter.id==Page.chapter_id, Page.is_deleted == False)",
+    legacy_pages: Mapped[list[Page]] = relationship(
+        primaryjoin=lambda: and_(Chapter.id == Page.chapter_id, Page.is_deleted.is_(False)),
         order_by="Page.order"
     )
+    chapter_pages: Mapped[list[ChapterPage]] = relationship(
+        cascade="all, delete-orphan", order_by="ChapterPage.order"
+    )
+
+    @property
+    def pages(self) -> list[Page | ChapterPage | OptimizedPage]:
+        originals = self.studio_pages
+        completed = ChapterPagesOptimizationStatus.COMPLETED.value
+        if self.optimization_status_id != completed:
+            return originals
+
+        pages = []
+        for page in originals:
+            if isinstance(page, ChapterPage) and page.is_orig and page.process_status_id == completed:
+                pages.extend(sorted(page.optimized_pages, key=lambda part: part.order))
+            else:
+                pages.append(page)
+        return pages
+
+    @property
+    def studio_pages(self) -> list[Page | ChapterPage]:
+        legacy = [page for page in self.legacy_pages if not page.is_deleted]
+        return sorted([*legacy, *self.chapter_pages], key=lambda page: page.order)
+
     translation: Mapped["Translation"] = relationship(back_populates="chapters")
     creator: Mapped["Profile"] = relationship()
     manga: Mapped["Manga"] = relationship(
@@ -68,6 +152,10 @@ class Chapter(BaseModel):
     )
 
     __table_args__ = (
+        CheckConstraint(
+            "optimization_status_id IN (1, 2)",
+            name="ck_chapter_optimization_status",
+        ),
         UniqueConstraint(
             "translation_id",
             "chapter",

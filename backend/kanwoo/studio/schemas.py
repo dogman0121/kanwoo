@@ -1,8 +1,11 @@
-from marshmallow import fields, Schema
+from marshmallow import fields, post_load, Schema, validate, validates_schema, ValidationError
 from enum import Enum
 
+from .dto import ChapterPageDTO, CreateStudioChapterDTO, UpdateStudioChapterDTO
+
 from kanwoo.schemas import Json, File
-from kanwoo.entities import FileAction, Privacy
+from kanwoo.main.schemas import validate_upload_token
+from kanwoo.entities import FileAction
 from kanwoo.manga.schemas import (
     GetMangaSchemaFull,
     MANGA_POSTER_ALLOWED_EXTENSIONS,
@@ -23,7 +26,7 @@ from kanwoo.manga.schemas import (
 )
 from kanwoo.translation.schemas import GetTranslationSchemaFull
 from kanwoo.moderation.schemas import ModerationStatusTypeSchema
-from kanwoo.chapter.schemas import GetChapterSchemaFull
+from kanwoo.chapter.schemas import GetChapterSchemaFull, GetPageSchema
 from kanwoo.translation.entities import ReadingModeEnum
 from kanwoo.profile.schemas import (
     AvatarAction,
@@ -86,24 +89,85 @@ class CreateStudioMangaTranslationSchema(Schema):
     name = fields.String()
     privacy_id = fields.Integer()
 
+class GetStudioChapterListItemSchema(GetChapterSchemaFull):
+    class Meta:
+        fields = ("id", "name", "chapter", "extra_number", "privacy")
+
+    extra_number = fields.Integer(allow_none=True)
+
+
 class GetStudioChapterSchema(GetChapterSchemaFull):
-    pass
-
-class CreateStudioChapterSchema(Schema):
-    name = fields.String(allow_none=True)
-    chapter = fields.Integer()
-    privacy_id = fields.Integer()
-    pages = fields.List(File())
-    pages_order = Json(fields.List(fields.String()))
     extra_number = fields.Integer(allow_none=True)
+    pages = fields.List(fields.Nested(GetPageSchema), attribute="chapter_pages")
+    pages_count = fields.Function(lambda chapter: len(chapter.chapter_pages))
 
-class UpdateStudioChapterSchema(Schema):
+class UploadedChapterPageSchema(Schema):
+    uuid = fields.UUID(required=True, validate=validate_upload_token)
+    width = fields.Integer(required=True, strict=True, validate=validate.Range(min=1, max=100_000))
+    height = fields.Integer(required=True, strict=True, validate=validate.Range(min=1, max=100_000))
+
+    @post_load
+    def to_dto(self, data, **kwargs):
+        return ChapterPageDTO(uuid=str(data["uuid"]), is_new=True, width=data["width"], height=data["height"])
+
+
+class StudioChapterDetailsSchema(Schema):
     name = fields.String(allow_none=True)
-    chapter = fields.Integer()
-    privacy_id = fields.Integer()
-    extra_number = fields.Integer(allow_none=True)
-    pages = fields.List(File())
-    pages_order = Json(fields.List(fields.String()))
+    chapter = fields.Integer(required=True, strict=True)
+    privacy_id = fields.Integer(required=True, strict=True, validate=validate.OneOf([1, 2, 3]))
+    extra_number = fields.Integer(allow_none=True, strict=True)
+
+
+def validate_unique_page_uuids(pages: list[ChapterPageDTO]) -> None:
+    if len({page.uuid for page in pages}) != len(pages):
+        raise ValidationError("Page UUIDs must be unique.")
+
+
+class CreateStudioChapterSchema(StudioChapterDetailsSchema):
+    pages = fields.List(
+        fields.Nested(UploadedChapterPageSchema),
+        required=True,
+        validate=[validate.Length(min=1), validate_unique_page_uuids],
+    )
+
+    @post_load
+    def to_dto(self, data, **kwargs):
+        return CreateStudioChapterDTO(**data)
+
+
+class UpdateStudioChapterPageSchema(UploadedChapterPageSchema):
+    is_new = fields.Boolean(required=True)
+    width = fields.Integer(strict=True, validate=validate.Range(min=1, max=100_000))
+    height = fields.Integer(strict=True, validate=validate.Range(min=1, max=100_000))
+
+    @validates_schema
+    def validate_dimensions(self, data, **kwargs):
+        errors = {}
+        for field in ("width", "height"):
+            if data["is_new"] and field not in data:
+                errors[field] = ["Missing data for new page."]
+            elif not data["is_new"] and field in data:
+                errors[field] = ["Dimensions are only accepted for new pages."]
+        if errors:
+            raise ValidationError(errors)
+
+    @post_load
+    def to_dto(self, data, **kwargs):
+        return ChapterPageDTO(
+            uuid=str(data["uuid"]), is_new=data["is_new"], width=data.get("width"), height=data.get("height"),
+        )
+
+
+class UpdateStudioChapterSchema(StudioChapterDetailsSchema):
+    pages = fields.List(
+        fields.Nested(UpdateStudioChapterPageSchema),
+        required=True,
+        validate=validate_unique_page_uuids,
+    )
+
+    @post_load
+    def to_dto(self, data, **kwargs):
+        return UpdateStudioChapterDTO(**data)
 
 class CreateUpdateNameTranslationSchema(Schema):
     lang = fields.String()
@@ -205,7 +269,7 @@ class GetStudioProfilePermissionSchema(GetProfilePermissionsSchema):
 class GetStudioCreateChapterFormSchema(Schema):
     name = fields.String()
     chapter = fields.Integer()
-    privacy_id = fields.Enum(Privacy, by_value=True)
+    privacy_id = fields.Integer()
     extra_number = fields.Integer()
     pages = fields.List(fields.String())
     blocked_fields = fields.List(fields.String())

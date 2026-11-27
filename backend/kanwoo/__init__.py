@@ -31,7 +31,7 @@ cors = CORS(
         "*"
     ],
     supports_credentials=True,  # ← это включает Allow-Credentials
-    allow_headers=["Content-Type", "Authorization", "X-CSRF-TOKEN"],
+    allow_headers=["Content-Type", "Authorization", "X-CSRF-TOKEN", "Idempotency-Key"],
     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
 
 file_storage = LocalStorage()

@@ -1,118 +1,78 @@
-from flask import request, Response
-from dependency_injector.wiring import Provide, inject
+import hashlib
+import json
+from datetime import datetime, timezone
 from functools import wraps
-from enum import Enum
-from sqlalchemy import text, insert, select, update
-from sqlalchemy.exc import OperationalError, IntegrityError
-from sqlalchemy.dialects.postgresql import insert as psql_insert
+from uuid import UUID
+
+from dependency_injector.wiring import Provide, inject
+from flask import Response, request
+from sqlalchemy import text
+from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import OperationalError
 
 from kanwoo import AppContainer
-from kanwoo.auth.services import HashService
-from kanwoo.unit_of_work import transaction_status, TransactionStatusEnum
 from kanwoo.unit_of_work import UnitOfWork
-from kanwoo.idempotency.models import Idempotency
 
 from .exceptions import IdempotencyError
-
-class AcquiredResponseEnum(Enum):
-    ACQUIRED = 0
-    TIMEOUT = 1
-    EXISTS = 2
-
-def acquire(db_session, key):
-
-    try:
-        db_session.execute(text("SET LOCAL lock_timeout = '100ms'"))
-
-        result = db_session.execute(
-            psql_insert(
-                Idempotency
-            ).values(
-                uuid=key
-            )
-            .on_conflict_do_nothing(
-                index_elements=[Idempotency.uuid]
-            )
-            .returning(Idempotency.uuid)
-        )
-    except OperationalError as exc:
-        if getattr(exc.orig, "sqlstate", None) == "55P03":
-            return AcquiredResponseEnum.TIMEOUT
-    finally:
-        db_session.execute(text("SET LOCAL lock_timeout = DEFAULT"))
-
-    if result is None:
-        return AcquiredResponseEnum.EXISTS
-    return AcquiredResponseEnum.ACQUIRED
+from .models import Idempotency
 
 
-def idemponent(func):
+def idempotent(func):
     @wraps(func)
     @inject
     def wrapper(
-        *args, 
+        current_profile,
+        *args,
         uow: UnitOfWork = Provide[AppContainer.unit_of_work],
-        hash_service: HashService = Provide[AppContainer.auth_container.hash_service],
         **kwargs,
     ):
+        header = request.headers.get("Idempotency-Key")
+        if header is None:
+            raise IdempotencyError(error="idempotency_key_required")
+        try:
+            token = UUID(header)
+        except ValueError:
+            raise IdempotencyError(error="invalid_idempotency_key") from None
+        if token.version != 4:
+            raise IdempotencyError(error="invalid_idempotency_key")
 
-        idempotency_key = request.headers.get("Idempotency-Key")
-
-        if idempotency_key is None:
-            raise IdempotencyError(
-                error="idempotency_key_required",
-                detail={
-                    "Idempotency-Key": ["Idempotency key is required."]
-                },
-                status_code=400
-            )
-
-        request_hash = hash_service.generate_hash(
-            (request.path + "::" + request.method + "::" + request.get_data(as_text=True)).encode()
-        )
+        scope = f"{current_profile.id}:{request.method}:{request.endpoint}:{token}"
+        key = hashlib.sha256(scope.encode()).hexdigest()
+        payload = json.dumps(request.get_json(), sort_keys=True, separators=(",", ":"))
+        fingerprint = hashlib.sha256(f"{request.path}:{payload}".encode()).hexdigest()
 
         with uow:
-            locked_status = acquire(uow.db_session, idempotency_key)
+            session = uow.db_session
+            try:
+                with session.begin_nested():
+                    session.execute(text("SET LOCAL lock_timeout = '100ms'"))
+                    acquired = session.execute(
+                        insert(Idempotency).values(uuid=key)
+                        .on_conflict_do_nothing(index_elements=[Idempotency.uuid])
+                        .returning(Idempotency.uuid)
+                    ).scalar_one_or_none()
+                    session.execute(text("SET LOCAL lock_timeout = DEFAULT"))
+            except OperationalError as exc:
+                if getattr(exc.orig, "sqlstate", getattr(exc.orig, "pgcode", None)) == "55P03":
+                    raise IdempotencyError(error="operation_in_progress", status_code=409) from exc
+                raise
 
-            if locked_status == AcquiredResponseEnum.EXISTS:
-                idempotency_sql_model = uow.db_session.execute(
-                    select(Idempotency).where(Idempotency.uuid==idempotency_key)
-                ).scalar_one_or_none()
+            record = session.get(Idempotency, key)
+            if acquired is None:
+                if record.request_hash != fingerprint:
+                    raise IdempotencyError(error="request_does_not_match", status_code=409)
+                if datetime.fromisoformat(record.expires_at) <= datetime.now(timezone.utc):
+                    raise IdempotencyError(error="idempotency_key_expired", status_code=409)
+                return Response(record.body, status=record.status_code, mimetype="application/json")
 
-                if idempotency_sql_model.request_hash != request_hash:
-                    raise IdempotencyError(
-                        error="request_does_not_match",
-                        status_code=409
-                    )
+            response = func(current_profile, *args, **kwargs)
+            if not 200 <= response.status_code < 300:
+                session.rollback()
+                return response
 
-                if idempotency_sql_model:                
-                    return Response(
-                        response=Idempotency.body, 
-                        status=Idempotency.status_code,
-                        mimetype="application/json"
-                    )
-            elif locked_status == AcquiredResponseEnum.TIMEOUT:
-                raise IdempotencyError(
-                    error="operation_in_progress",
-                    detail={
-                        "Idempotency-Key": ["Operation with this Idempotency-Key in progress."]
-                    },
-                    status_code=409
-                )
-
-            response: Response = func(*args, **kwargs)
-            
-            if (response.status_code // 100 == 2 or \
-                (response.status_code // 100 == 5  and transaction_status.get() != TransactionStatusEnum.ROLLED_BACK)
-            ):
-                uow.db_session.execute(update(Idempotency).values(
-                    status_code=response.status_code,
-                    request_hash=request_hash,
-                    body=response.get_data(as_text=True)
-                ).where(
-                    Idempotency.uuid == idempotency_key
-                ))
-
+            record.request_hash = fingerprint
+            record.status_code = response.status_code
+            record.body = response.get_data(as_text=True)
             return response
 
     return wrapper

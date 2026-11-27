@@ -3,6 +3,7 @@ from dependency_injector import providers, containers
 from .repositories import ChapterRepository
 from .services import (
     ChapterPageService, 
+    ChapterPagesOptimizationService,
     ChapterService,
     ChapterContextService,
     ChapterPublicService,
@@ -21,6 +22,7 @@ class ChapterContainer(containers.DeclarativeContainer):
     image_service_factory = providers.Dependency()
 
     file_storage = providers.Dependency()
+    object_storage = providers.Dependency()
 
     chapter_repo = providers.Singleton(
         ChapterRepository,
@@ -29,6 +31,13 @@ class ChapterContainer(containers.DeclarativeContainer):
 
     chapter_policy = providers.Singleton(
         ChapterPolicy
+    )
+
+    chapter_pages_optimization_service = providers.Factory(
+        ChapterPagesOptimizationService,
+        storage=object_storage,
+        image_service_factory=image_service_factory,
+        chapter_repo=chapter_repo,
     )
 
     chapter_page_service = providers.Factory(
@@ -45,6 +54,7 @@ class ChapterContainer(containers.DeclarativeContainer):
         chapter_policy=chapter_policy,
         db_transaction=db_transaction,
         unit_of_work=unit_of_work,
+        pages_optimization_service=chapter_pages_optimization_service,
     )
 
     chapter_public_service = providers.Factory(

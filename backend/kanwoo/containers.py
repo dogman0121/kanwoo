@@ -18,6 +18,7 @@ from kanwoo.search.containers import SearchContainer
 from kanwoo.collection.containers import CollectionContainer
 from kanwoo.database import DBTransaction
 from kanwoo.unit_of_work import UnitOfWork
+from kanwoo.studio.services import StudioChapterService
 from kanwoo.settings.containers import SettingsContainer
 from kanwoo.comment.containers import CommentContainer
 from kanwoo.post.containers import PostContainer
@@ -35,6 +36,7 @@ class AppContainer(containers.DeclarativeContainer):
     unit_of_work = providers.Factory(UnitOfWork, db_session=db_session)
 
     file_storage = providers.Dependency()
+    object_storage = providers.Object(None)
     cache = providers.Dependency()
 
     email_service = providers.Factory(
@@ -103,12 +105,25 @@ class AppContainer(containers.DeclarativeContainer):
 
     chapter_container = providers.Container(
         ChapterContainer,
+        object_storage=object_storage,
         image_service_factory=image_service_factory,
         file_storage=file_storage,
         db_session=db_session,
         db_transaction=db_transaction,
         unit_of_work=unit_of_work,
     )
+
+    studio_chapter_service = providers.Factory(
+        StudioChapterService,
+        chapter_repo=chapter_container.chapter_repo,
+        chapter_policy=chapter_container.chapter_policy,
+        unit_of_work=unit_of_work,
+        storage=object_storage,
+        translation_service=translation_container.translation_service,
+        optimization_service=chapter_container.chapter_pages_optimization_service,
+    )
+
+    chapter_pages_optimization_service = chapter_container.chapter_pages_optimization_service
 
     reading_progress_container = providers.Container(
         ReadingProgressContainer,

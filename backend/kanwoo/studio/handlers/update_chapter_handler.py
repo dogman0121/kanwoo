@@ -1,41 +1,27 @@
+from dependency_injector.wiring import Provide, inject
 from flask import request
-from dependency_injector.wiring import inject, Provide
+from marshmallow import ValidationError
 
 from kanwoo import AppContainer, respond
-from kanwoo.database import DBTransaction
+from kanwoo.exceptions import ApiBadRequest
+from kanwoo.idempotency.middleware import idempotent
 from kanwoo.profile.middleware import profile_required
-from kanwoo.chapter.dto import UpdateChapterDTO
-from kanwoo.chapter.services import ChapterService
-from kanwoo.studio.schemas import UpdateStudioChapterSchema, GetStudioChapterSchema
+from kanwoo.studio.schemas import GetStudioChapterSchema, UpdateStudioChapterSchema
+from kanwoo.studio.services import StudioChapterService
+
 
 @profile_required()
+@idempotent
 @inject
 def update_chapter_handler(
-    current_profile, 
+    current_profile,
     chapter_id,
-    db_transaction: DBTransaction = Provide[AppContainer.db_transaction],
-    chapter_service: ChapterService = Provide[AppContainer.chapter_container.chapter_service]
-):  
-    chapter = chapter_service.user_get_chapter_by_id(current_profile, chapter_id)
+    chapter_service: StudioChapterService = Provide[AppContainer.studio_chapter_service],
+):
+    try:
+        data = UpdateStudioChapterSchema().load(request.get_json())
+    except ValidationError as exc:
+        raise ApiBadRequest(error="invalid_chapter", detail=exc.messages) from exc
 
-    update_data = UpdateStudioChapterSchema().load({
-        "name": request.form.get("name"),
-        "chapter": request.form.get("chapter"),
-        "privacy_id": request.form.get("privacy_id"),
-        "extra_number": request.form.get("extra_number"),
-        "pages": request.files.getlist("pages"),
-        "pages_order": request.form.get("pages_order")
-    })
-
-    update_dto = UpdateChapterDTO(
-        name=update_data.get("name"),
-        chapter=update_data.get("chapter"),
-        privacy_id=update_data.get("privacy_id"),
-        extra_number=update_data.get("extra_number"),
-        pages=update_data.get("pages"),
-        pages_order=update_data.get("pages_order")
-    )
-
-    chapter = chapter_service.user_update_chapter(current_profile, chapter, update_dto)
-
+    chapter = chapter_service.update_chapter(current_profile, chapter_id, data)
     return respond(data=GetStudioChapterSchema().dump(chapter))

@@ -2,9 +2,14 @@ import os
 from abc import abstractmethod, ABC
 import boto3
 from botocore.exceptions import ClientError
+from botocore.config import Config
 
 
 from kanwoo.entities import File
+
+CHAPTER_OBJECT_PREFIX = "chapters/"
+OPTIMIZED_CHAPTER_OBJECT_PREFIX = f"{CHAPTER_OBJECT_PREFIX}optimized/"
+LEGACY_CHAPTER_OBJECT_PREFIX = "chapter-originals/"
 
 class FileExistException(Exception):
     pass
@@ -107,15 +112,23 @@ class S3Storage(FileStorageMixin):
             service_name='s3',
             endpoint_url=self.endpoint_url,
             aws_access_key_id=self.acccess_key_id,
-            aws_secret_access_key=self.access_secret_key
+            aws_secret_access_key=self.access_secret_key,
+            region_name=app.config.get("S3_REGION_NAME"),
+            config=Config(signature_version="s3v4"),
         )
 
     def save(self, file: File, key: str):
         self.client.put_object(
             Bucket=self.bucket_name, 
             Key=key, 
-            Body=file.bytes
+            Body=file.bytes,
+            ContentType=file.content_type,
         )
+
+    def read(self, key: str) -> File:
+        response = self.client.get_object(Bucket=self.bucket_name, Key=key)
+        with response["Body"] as body:
+            return File(key, response["ContentType"], body.read())
 
     def delete(self, key):
         self.client.delete_object(
@@ -128,22 +141,26 @@ class S3Storage(FileStorageMixin):
             self.client.head_object(Bucket=self.bucket_name, Key=key)
             return True
         except ClientError as e:
-            if e.response["Error"]["Code"] == "404":
+            if e.response["Error"]["Code"] in {"403", "404", "AccessDenied", "NoSuchKey", "NotFound"}:
                 return False
             raise
 
-    def get_object_url(self, key):
-        return os.path.join(self.endpoint_url, key)
+    def get_url(self, key):
+        return self.client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": self.bucket_name, "Key": key},
+            ExpiresIn=3600,
+        )
 
-    def get_upload_url(self, key, min_file_size=0, max_file_size=100 * 1024^2, expires_in=3600):
-        self.client.get_presigned_url(
-            ClientMethod="put_object",
+    def get_upload_url(self, key, *, content_type, size, expires_in=900):
+        return self.client.generate_presigned_url(
+            "put_object",
             Params={
                 "Bucket": self.bucket_name,
-                "Key": key
+                "Key": key,
+                "ContentType": content_type,
+                "ContentLength": size,
+                "IfNoneMatch": "*",
             },
-            Conditions=[
-                ["content-length-range", min_file_size, max_file_size]
-            ],
-            ExpiresIn=expires_in
+            ExpiresIn=expires_in,
         )

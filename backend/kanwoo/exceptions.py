@@ -1,5 +1,6 @@
 from flask import Flask
 from flask_limiter.errors import RateLimitExceeded
+from marshmallow import ValidationError
 from werkzeug.exceptions import HTTPException, NotFound
 import logging
 from kanwoo.utils import respond
@@ -52,6 +53,8 @@ def handle_exception(error):
                 detail=error.detail,
                 status_code=error.status_code,
             )
+        elif isinstance(error, ValidationError):
+            return respond(error=errors_string[400], detail=error.messages, status_code=400)
         elif isinstance(error, RateLimitExceeded):
             return respond(
                 error=errors_string[429],

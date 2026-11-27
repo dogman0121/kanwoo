@@ -1,4 +1,5 @@
 from sqlalchemy.orm.session import Session
+from collections.abc import Callable
 from contextvars import ContextVar
 from enum import Enum
 
@@ -9,6 +10,7 @@ class TransactionStatusEnum(Enum):
     UNKNOWN = "unknown"
 
 nesting_level_var: ContextVar[int] = ContextVar('nesting_level', default=0)
+after_commit_callbacks: ContextVar[list[Callable[[], None]]] = ContextVar("after_commit_callbacks")
 
 transaction_status: ContextVar[TransactionStatusEnum] = ContextVar(
     'transaction_status', 
@@ -24,8 +26,13 @@ class UnitOfWork:
     def flush(self):
         self.db_session.flush()
 
+    def after_commit(self, callback: Callable[[], None]):
+        after_commit_callbacks.get().append(callback)
+
     def __enter__(self):
         nesting_level = nesting_level_var.get()
+        if nesting_level == 0:
+            after_commit_callbacks.set([])
         token = nesting_level_var.set(nesting_level + 1)
         self._tokens.append(token)
         transaction_status.set(TransactionStatusEnum.OPENED)
@@ -39,6 +46,8 @@ class UnitOfWork:
         nesting_level_var.reset(token)
 
         if nesting_level_var.get() == 0:
+            callbacks = after_commit_callbacks.get()
+            after_commit_callbacks.set([])
             if exc_type is not None:
                 self.db_session.rollback()
                 transaction_status.set(TransactionStatusEnum.ROLLED_BACK)
@@ -51,5 +60,7 @@ class UnitOfWork:
                 self.db_session.rollback()
                 transaction_status.set(TransactionStatusEnum.ROLLED_BACK)
                 raise
+            for callback in callbacks:
+                callback()
 
         return False

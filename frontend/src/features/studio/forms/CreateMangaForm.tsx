@@ -26,39 +26,18 @@ export function getDefaultValues() {
 
 export interface MangaCreateFormSchema {
     name: string,
-    privacy: number,
+    privacyId: number,
     description: string,
     year: number,
-    type: number,
-    status: number,
-    adult: number,
-    genres: number[],
+    typeId: number,
+    statusId: number,
+    adultId: number,
+    genresIds: number[],
     poster: File,
     background: File
 }
 
-export function convertFormToFormData(data: MangaCreateFormSchema) {
-    const formData = new FormData()
-
-    formData.set("name", data.name)
-    formData.set("privacy_id", data.privacy.toString())
-    formData.set("description", data.description)
-    formData.set("year", data.year.toString())
-    formData.set("type_id", data.type.toString())
-    formData.set("status_id", data.status.toString())
-    formData.set("adult_id", data.adult.toString())
-
-    for (let g of data.genres) {
-        formData.set("genre_id", g.toString())
-    }
-
-    formData.set("poster", data.poster)
-    formData.set("background", data.background)
-
-    return formData
-}
-
-export function useCreateForm() {
+export function useCreateMangaForm() {
     const props = useForm<MangaCreateFormSchema>({
         mode: "onChange",
         defaultValues: getDefaultValues()
@@ -69,11 +48,13 @@ export function useCreateForm() {
 
 export default function CreateMangaForm({
     onCreate,
-    control,
-    handleSubmit,
+    methods
 }: {
-    onCreate?: (data: MangaCreateFormSchema) => void
-} & UseFormReturn<MangaCreateFormSchema>) {
+    onCreate?: (data: MangaCreateFormSchema) => void,
+    methods: UseFormReturn<MangaCreateFormSchema>
+}) {
+
+    const {handleSubmit, control} = methods
 
     const onSubmit = async (data: MangaCreateFormSchema) => {
         onCreate?.(data)
@@ -116,7 +97,7 @@ export default function CreateMangaForm({
                     />
                     <Controller 
                         control={control}
-                        name="privacy"
+                        name="privacyId"
                         defaultValue={Privacy.PRIVATE}
                         render={({field}) => (
                             <PrivacySelect 
@@ -150,7 +131,7 @@ export default function CreateMangaForm({
                     >
                         <Grid size={1}>
                             <Controller 
-                                name="type"
+                                name="typeId"
                                 control={control}
                                 render={({field: {value, ...props}}) => (
                                     <MangaType
@@ -163,7 +144,7 @@ export default function CreateMangaForm({
                         </Grid>
                         <Grid size={1}>
                             <Controller 
-                                name="status"
+                                name="statusId"
                                 control={control}
                                 render={({field: {value, ...props}}) => (
                                     <MangaStatus
@@ -188,7 +169,7 @@ export default function CreateMangaForm({
                         </Grid>
                         <Grid size={1}>
                             <Controller 
-                                name="adult"
+                                name="adultId"
                                 control={control}
                                 render={({field: {value, ...props}}) => (
                                     <MangaAdult
@@ -200,7 +181,7 @@ export default function CreateMangaForm({
                         </Grid>
                     </Grid>
                     <Controller 
-                        name="genres"
+                        name="genresIds"
                         control={control}
                         render={({field: {value, onChange, ...props}}) => (
                             <MangaGenres

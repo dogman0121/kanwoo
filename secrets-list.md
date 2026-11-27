@@ -23,6 +23,15 @@
 | `TEST_MAIL_USERNAME` | `PROD_MAIL_USERNAME` | Имя пользователя SMTP |
 | `TEST_MAIL_PASSWORD` | `PROD_MAIL_PASSWORD` | Пароль SMTP |
 
+## Секреты окружения `backend-prod`
+
+Добавь их в **Settings → Environments → backend-prod → Environment secrets**. Деплой передаёт эти ключи в контейнеры Flask и Celery.
+
+| Секрет | Значение |
+| --- | --- |
+| `S3_ACCESS_KEY_ID` | Идентификатор ключа доступа к S3 |
+| `S3_ACCESS_SECRET_KEY` | Секретный ключ доступа к S3 |
+
 ## Переменные окружений
 
 В **Settings → Environments** создай `backend-test`, `backend-prod`, `frontend-test` и `frontend-prod`. В каждом окружении добавь переменные через **Environment variables → Add variable**. Используй имена из таблиц без префиксов. В test-окружениях укажи значения для деплоя из `develop`, в prod-окружениях — из `main`. [Документация GitHub](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-variables)
@@ -58,6 +67,15 @@
 | `YANDEX_OAUTH_LOGIN_URL` | URL входа через Yandex OAuth |
 | `YANDEX_AVATARS_URL` | Базовый URL аватаров Yandex |
 | `YANDEX_AVATARS_SIZE` | Размер аватаров Yandex |
+
+### Дополнительно в `backend-prod`
+
+| Переменная | Значение |
+| --- | --- |
+| `CELERY_BROKERY_URI` | URI брокера Celery для Flask и воркера. Если переменная пуста, Compose использует `redis://kanwoo-backend_redis:6379/0` |
+| `S3_BUCKET_NAME` | Имя бакета с оригиналами и оптимизированными страницами глав |
+| `S3_ENDPOINT_URL` | URL API хранилища S3 |
+| `S3_REGION_NAME` | Регион S3 |
 
 ### Дополнительно в `frontend-test` и `frontend-prod`
 

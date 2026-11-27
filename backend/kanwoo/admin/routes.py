@@ -8,8 +8,8 @@ from kanwoo.report.services import ReportService
 from kanwoo.main.services import FeedbackService
 from kanwoo.moderation.services import ModerationService
 from kanwoo.moderation.dto import ModerationStatusUpdateDTO
-from kanwoo.manga.services import MangaService, MangaSuggestionService
-from kanwoo.profile.services import ProfileService
+from kanwoo.studio.services import StudioMangaService, StudioProfileService
+from kanwoo.manga.services import MangaSuggestionService
 from kanwoo.profile.dto import CreateProfileDTO
 from kanwoo.profile.schemas import ProfileCreateSchema, GetProfileSchema
 
@@ -54,7 +54,7 @@ def get_main_dashboard_route(
 @inject
 def create_manga_route(
     current_profile,
-    manga_service: MangaService = Provide[AppContainer.manga_container.manga_service]
+    manga_service: StudioMangaService = Provide[AppContainer.studio_manga_service]
 ):
     create_dto = convert_manga_create_form_into_create_dto(request.form, request.files)
 
@@ -86,7 +86,7 @@ def update_manga_route(
     current_profile,
     manga_slug,
     admin_manga_service: AdminMangaService = Provide[AppContainer.admin_container.admin_manga_service],
-    manga_service: MangaService = Provide[AppContainer.manga_container.manga_service]
+    manga_service: StudioMangaService = Provide[AppContainer.studio_manga_service]
 ):
     manga = admin_manga_service.user_get_manga_by_slug(current_profile, manga_slug)
 
@@ -287,7 +287,7 @@ def get_profiles_route(
 @inject
 def create_profile_route(
     current_profile,
-    profile_service: ProfileService = Provide[AppContainer.profile_container.profile_service]
+    profile_service: StudioProfileService = Provide[AppContainer.studio_profile_service]
 ):
     name = request.form.get("name")
     slug = request.form.get("slug")

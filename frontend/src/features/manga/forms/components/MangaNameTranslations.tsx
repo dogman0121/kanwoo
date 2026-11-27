@@ -38,7 +38,7 @@ function SortableTranslation({
     onChangeName, 
     onChangeLang 
 }: {
-    translation: { name: string; lang: number, id: string };
+    translation: { name: string; lang_id: number, id: string };
     index: number;
     onRemove: (index: number) => void;
     onChangeName: (index: number, value: string) => void;
@@ -105,7 +105,7 @@ function SortableTranslation({
                 />
             </Box>
             <EditSelect 
-                value={translation.lang}
+                value={translation.lang_id}
                 type="lang"
                 onFocus={() => setLinkTouched(true)}
                 onChange={(e) => {
@@ -147,8 +147,8 @@ export default function MangaNameTranslations({
     value,
     onChange
 }: {
-    value: { name: string; lang: number }[];
-    onChange: (lists: { name: string; lang: number }[]) => void;
+    value: { name: string; lang_id: number }[];
+    onChange: (lists: { name: string; lang_id: number }[]) => void;
 }) {
     const sensors = useSensors(
         useSensor(PointerSensor),
@@ -162,12 +162,12 @@ export default function MangaNameTranslations({
 
         v.push({ 
             name: "", 
-            lang: 1
+            lang_id: 1
         });
 
         itemsWithIds.push({
             name: "", 
-            lang: 1,
+            lang_id: 1,
             id: `translation-${v4()}` 
         })
 
@@ -188,7 +188,7 @@ export default function MangaNameTranslations({
 
     const handleChangeLang = (index: number, newLang: number) => {
         const v = [...value];
-        v[index] = { ...v[index], lang: newLang };
+        v[index] = { ...v[index], lang_id: newLang };
         onChange(v);
     }
 

@@ -1,4 +1,3 @@
-from pytils.translit import slugify
 from datetime import datetime
 from typing import Optional, Tuple, List
 
@@ -9,10 +8,8 @@ from kanwoo.file_storage import FileStorageMixin
 from kanwoo.database import DBTransaction
 from kanwoo.uuid import UUIDGenerator
 from kanwoo.image import ImageServiceFactory
-from kanwoo.entities import FileAction, File
-from kanwoo.moderation.services import ModerationService
-from kanwoo.moderation.entity import ModerationStatus
-from kanwoo.moderation.dto import ModerationStatusUpdateDTO
+from kanwoo.models import FileModel
+from kanwoo.entities import File
 from kanwoo.profile.entity import AnonymousProfile
 from kanwoo.collection.services import CollectionService
 
@@ -20,7 +17,6 @@ from .models import (
     Manga, 
     Poster, 
     PosterFile, 
-    NameTranslation, 
     Background, 
     PromoName, 
     PromoLogo, 
@@ -28,9 +24,6 @@ from .models import (
     MangaSuggestion
 )
 from .dto import (
-    CreateMangaDTO, 
-    UpdateMangaDTO, 
-    NameTranslationDTO, 
     MangaSuggestionCreateDTO, 
     MangaContextDTO, 
     MangaViewerContextDTO,
@@ -42,7 +35,7 @@ from .repositories import (
     MangaStatsRepository,
     MangaStatRepository
 )
-from .exceptions import MangaNotFoundException, MangaUpdateNotAllowedException, MangaDeleteNotAllowedException, MangaInvalidData, MangaCreateNotAllowedException
+from .exceptions import MangaNotFoundException, MangaDeleteNotAllowedException
 from .permissions import MangaPolicy
 
 
@@ -65,33 +58,21 @@ class MangaMediaService:
         self.manga_repo = manga_repo
         self.file_storage = file_storage
 
-    def __get_path(self, uuid, ext):
-        return f"manga/{uuid}{ext}"
+    def _save_image(self, image_service, size: Tuple, extension: str, filename: str) -> FileModel:
+        file_uuid = UUIDGenerator.generate_uuid_v4()
+        path = f"manga/{file_uuid}{extension}"
+        image = image_service.resize(size)
+        self.file_storage.save(image, path)
+        return FileModel(
+            uuid=file_uuid,
+            path=path,
+            filename=filename,
+            mimetype=image.content_type,
+            file_size=len(image.bytes),
+        )
 
-    def _save_image(self, image_service, size: Tuple, ext: str) -> str:
-        """
-            Saves image with uuid
-
-            Parameters:
-                file (File): Image file.
-                size (tuple[int, int]): Size of the image.
-                format (str): Image mimetype. For example: "JPEG" or "WEBP".
-                ext (str): File extension. For example: ".webp".
-
-            Returns:
-                uuid (str): unique identifier of saved image.
-
-        """
-        file_uuid = UUIDGenerator.generate_uuid()
-
-        img = image_service.resize(size)
-
-        self.file_storage.save(img, f"manga/{file_uuid}{ext}")
-
-        return file_uuid
-    
     def set_poster(self, manga: Manga, poster_file: File):
-        poster_uuid = UUIDGenerator.generate_uuid()
+        poster_uuid = UUIDGenerator.generate_uuid_v4()
         poster = Poster(
             uuid=poster_uuid
         )
@@ -99,11 +80,11 @@ class MangaMediaService:
         image_service = self.image_service_factory.create(poster_file, "JPEG")
 
         for quality, size in self.POSTER_SIZES.items():
-            poster_version_uuid = self._save_image(image_service, size, ".jpg")
+            file = self._save_image(image_service, size, ".jpg", poster_file.filename)
 
             poster_version = PosterFile(
-                uuid=poster_version_uuid,
-                path=self.__get_path(poster_version_uuid, ".jpg"),
+                uuid=file.uuid,
+                file=file,
                 poster_uuid=poster_uuid,
                 type=quality,
             )
@@ -116,50 +97,34 @@ class MangaMediaService:
     def set_background(self, manga, background_file: File):
         image_service = self.image_service_factory.create(background_file, "JPEG")
 
-        background_uuid = self._save_image(image_service, self.BACKGROUND_SIZE, ".jpg")
-
-        background = Background(
-            uuid=background_uuid,
-            path=self.__get_path(background_uuid, ".jpg"),
-        )
+        file = self._save_image(image_service, self.BACKGROUND_SIZE, ".jpg", background_file.filename)
+        background = Background(uuid=file.uuid, file=file)
 
         self.manga_repo.set_background(manga, background)
 
-        return background_uuid
+        return file.uuid
 
     def set_promo_name(self, manga, promo_name_file: File):
         image_service = self.image_service_factory.create(promo_name_file, "WEBP")
 
-        promo_name_uuid = self._save_image(image_service, self.PROMO_NAME_SIZE, ".webp")
-
-        promo_name = PromoName(
-            uuid=promo_name_uuid,
-            path=self.__get_path(promo_name_uuid, ".webp")
-        )
+        file = self._save_image(image_service, self.PROMO_NAME_SIZE, ".webp", promo_name_file.filename)
+        promo_name = PromoName(uuid=file.uuid, file=file)
 
         self.manga_repo.set_promo_name(manga, promo_name)
 
     def set_promo_logo(self, manga, promo_logo_file: File):
         image_service = self.image_service_factory.create(promo_logo_file, "WEBP")
 
-        promo_logo_uuid = self._save_image(image_service, self.PROMO_LOGO_SIZE, ".webp")
-
-        promo_logo = PromoLogo(
-            uuid=promo_logo_uuid,
-            path=self.__get_path(promo_logo_uuid, ".webp")
-        )
+        file = self._save_image(image_service, self.PROMO_LOGO_SIZE, ".webp", promo_logo_file.filename)
+        promo_logo = PromoLogo(uuid=file.uuid, file=file)
 
         self.manga_repo.set_promo_logo(manga, promo_logo)
 
     def set_promo_background(self, manga, promo_background_file: File):
         image_service = self.image_service_factory.create(promo_background_file, "WEBP")
 
-        promo_background_uuid = self._save_image(image_service, self.PROMO_BACKGROUND_SIZE, ".webp")
-
-        promo_background = PromoBackground(
-            uuid=promo_background_uuid,
-            path=self.__get_path(promo_background_uuid, ".webp")
-        )
+        file = self._save_image(image_service, self.PROMO_BACKGROUND_SIZE, ".webp", promo_background_file.filename)
+        promo_background = PromoBackground(uuid=file.uuid, file=file)
 
         self.manga_repo.set_promo_background(manga, promo_background)
 
@@ -212,17 +177,13 @@ class MangaService:
 
     def __init__(
         self, 
-        manga_media_service: MangaMediaService, 
         manga_repo: MangaRepository,
         manga_policy: MangaPolicy,
-        moderation_service: ModerationService,
         collection_service: CollectionService,
         db_transaction: DBTransaction
     ):
-        self.manga_media_service = manga_media_service
         self.manga_repo = manga_repo
         self.manga_policy = manga_policy
-        self.moderation_service = moderation_service
         self.collection_service = collection_service
         self.db_transaction = db_transaction
 
@@ -254,118 +215,6 @@ class MangaService:
 
         return manga
     
-    def _get_slug(self, name: str):
-        slug = slugify(name)
-
-        # check if slug has been taken
-        try:
-            i = 1
-            while self.system_get_manga_by_slug(slug):
-                slug = slugify(name) + str(i)
-                i+=1
-        except MangaNotFoundException:
-            return slug
-
-    def _prepare_name_translations(self, manga: Manga, name_translations: List[NameTranslationDTO]):
-        return [
-            NameTranslation(
-                manga_id=manga.id,
-                lang_id=translation.lang_id,
-                name=translation.name
-            ) for translation in name_translations
-        ]
-    
-    def user_create_manga(self, creator_profile, author_profile, data: CreateMangaDTO):
-        if not self.manga_policy.can_create(creator_profile, author_profile):
-            raise MangaCreateNotAllowedException()
-
-        if not self.manga_repo.check_if_genres_exists(data.genres_ids):
-            raise MangaNotFoundException()
-
-        if data.slug:
-            slug = self._get_slug(data.slug)
-        else:
-            slug = self._get_slug(data.name)
-
-        genres = self.manga_repo.get_genres_by_ids(data.genres_ids)
-
-        manga = Manga(
-            slug=slug,
-            name=data.name,
-            description=data.description,
-            type_id=data.type_id,
-            status_id=data.status_id,
-            year=data.year,
-            adult_id=data.adult_id,
-            genres=genres,
-            author_id= author_profile.id if author_profile else None,
-            creator_id=creator_profile.id,
-            privacy_id=data.privacy_id
-        )
-
-        with self.db_transaction:
-            if data.poster:
-                self.manga_media_service.set_poster(manga, data.poster)
-            if data.background:
-                self.manga_media_service.set_background(manga, data.background)
-            if data.promo_name:
-                self.manga_media_service.set_promo_name(manga, data.promo_name)
-            if data.promo_logo:
-                self.manga_media_service.set_promo_logo(manga, data.promo_logo)
-            if data.promo_background:
-                self.manga_media_service.set_promo_background(manga, data.promo_background)
-                
-            manga = self.manga_repo.create_manga(manga)
-
-        moderation_status_dto = ModerationStatusUpdateDTO(
-            status_type_id=ModerationStatus.MODERATION.value,
-            message="Init status"
-        )
-
-        self.moderation_service.system_update_manga_moderation_status(manga, moderation_status_dto)
-
-        return manga
-
-    def user_update_manga(self, profile, manga: Manga, data: UpdateMangaDTO):
-        if not self.manga_policy.can_edit(profile, manga):
-            raise MangaUpdateNotAllowedException
-
-
-        slug = slugify(data.slug)
-        if slug and manga.slug != slug and self.manga_repo.get_manga_by_slug_from_system(slug):
-            raise MangaInvalidData(detail={"slug": ["Invalid slug."]})
-
-        name_translations = self._prepare_name_translations(manga, data.name_translations)
-
-        genres = self.manga_repo.get_genres_by_ids(data.genres_ids)
-
-        with self.db_transaction:
-            self.manga_repo.update_manga(manga, {
-                "name": data.name,
-                "name_translations": name_translations,
-                "slug": slug,
-                "description": data.description,
-                "type_id": data.type_id,
-                "status_id": data.status_id,
-                "adult_id": data.adult_id,
-                "year": data.year,
-                "genres": genres,
-                "privacy_id": data.privacy_id
-            })
-
-            if data.poster_action != FileAction.KEEP:
-                self.manga_media_service.update_poster(manga, data.poster)
-            if data.background_action != FileAction.KEEP:
-                self.manga_media_service.update_background(manga, data.background)
-            if data.promo_name_action != FileAction.KEEP:
-                self.manga_media_service.update_promo_name(manga, data.promo_name)
-            if data.promo_logo_action != FileAction.KEEP:
-                self.manga_media_service.update_promo_logo(manga, data.promo_logo)
-            if data.promo_background_action != FileAction.KEEP:
-                self.manga_media_service.update_promo_background(manga, data.promo_background)
-
-        return manga
-            
     def _delete_manga(self, manga: Manga):
         self.manga_repo.delete_manga(manga)
 

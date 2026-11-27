@@ -56,10 +56,8 @@ class MangaContainer(containers.DeclarativeContainer):
 
     manga_service = providers.Factory(
         MangaService,
-        manga_media_service=manga_media_service,
         manga_repo=manga_repo,
         manga_policy=manga_policy,
-        moderation_service=moderation_service,
         collection_service=collection_service,
         db_transaction=db_transaction,
     )

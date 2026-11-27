@@ -2,7 +2,7 @@
 
 import { closestCenter, DndContext, DragEndEvent, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core"
 import {CSS} from '@dnd-kit/utilities';
-import { Box, Button, Modal, Paper, SxProps, Typography } from "@mui/material";
+import { Box, Button, Chip, CircularProgress, Modal, Paper, Slider, Stack, SxProps, Typography } from "@mui/material";
 import UploadFileRoundedIcon from "@mui/icons-material/UploadFileRounded"
 import { useDropzone } from "react-dropzone";
 import { v4 } from "uuid";
@@ -13,6 +13,12 @@ import CloseRoundedIcon from "@mui/icons-material/CloseRounded"
 import ZoomInRoundedIcon from "@mui/icons-material/ZoomInRounded"
 import DeleteRoundedIcon from "@mui/icons-material/DeleteRounded"
 import SortRoundedIcon from "@mui/icons-material/SortRounded"
+import ErrorIcon from '@mui/icons-material/Error';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import QueryBuilderRoundedIcon from '@mui/icons-material/QueryBuilderRounded';
+import Poster from "@/features/manga/components/ui/Poster";
+import ZoomOutRoundedIcon from '@mui/icons-material/ZoomOutRounded';
+
 
 
 export interface EditFile {
@@ -20,6 +26,11 @@ export interface EditFile {
     previewLink: string,
     file?: File,
     name: string
+}
+
+export type UploadStatus = {
+    state: "idle" | "queued" | "ready" | "error" | "uploading",
+    progress?: number
 }
 
 function EditFileInput({
@@ -37,7 +48,7 @@ function EditFileInput({
         } as EditFile)))
     }
 
-    const {getRootProps, getInputProps, isDragActive} = useDropzone({
+    const {getRootProps, getInputProps} = useDropzone({
         onDrop: handleDrop,
         accept: {
             "image/jpeg": [".jpg", ".jpeg"],
@@ -49,7 +60,6 @@ function EditFileInput({
 
     return (
         <>
-
             <Paper
                 {...getRootProps()}
                 elevation={1}
@@ -87,14 +97,193 @@ function EditFileInput({
     )
 }
 
-function EditFilePreview({
-    file,
+function UploadStatusChip({
+    state,
+    progress,
+}: {
+    state: Exclude<UploadStatus["state"], "idle">
+    progress?: number
+}) {
+
+    const statusContent = {
+        "queued": {
+            label: "В очереди",
+            icon: <QueryBuilderRoundedIcon color="disabled" />
+        },
+        "ready": {
+            label: "Готово",
+            icon: <CheckCircleIcon color="success" />
+        },
+        "error": {
+            label: "Ошибка",
+            icon: <ErrorIcon color="error" />
+        },
+        "uploading": {
+            label: "Загрузка",
+            icon: (
+                <CircularProgress
+                    variant="determinate"
+                    value={progress ?? 0}
+                    color="primary"
+                    size={"18px"}
+                />
+            )
+        }
+    }
+
+    return (
+        <Chip
+            sx={{
+                bgcolor: "background.paper",
+            }}
+            size="small"
+            icon={statusContent[state].icon}
+            label={statusContent[state].label}
+        />
+    )
+}
+
+function Zoomer({
+    value,
+    onChange
+}: {
+    value: number,
+    onChange: (event: Event, value: number) => void
+}) {
+
+    const handleZoomButtons = () => {
+
+    }
+
+    useEffect(() => {
+
+        document.addEventListener("keydown", handleZoomButtons)
+
+        return () => {
+            document.removeEventListener("keydown", handleZoomButtons)
+        }
+    }, [])
+    
+    return (
+        <Box
+            sx={{
+                width: "240px",
+                bgcolor: "background.paper",
+
+                px: 2,
+                py: 1,
+                borderRadius: 4,
+
+                display: "flex",
+                flexDirection: "row",
+                alignItems: "center"
+            }}
+        >
+            <Stack direction="row" spacing={3} sx={{
+                alignItems: "center",
+                width: "100%"
+            }}>
+                <ZoomInRoundedIcon />
+                <Slider value={value} onChange={onChange}/>
+                <ZoomOutRoundedIcon />
+            </Stack>
+            <Typography
+                sx={{
+                    mx: 2,
+                    minWidth: "34px"
+                }}
+            >
+                {value}%
+            </Typography>
+        </Box>
+    )
+}
+
+function EditFileZoomablePreview({
+    open,
+    url,
     onClose
 }: {
-    file: EditFile,
+    open: boolean,
+    url: string | null,
     onClose: () => void
 }) {
-    const [zoomOpen, setZoomOpen] = useState(false)
+    const [zoomValue, setZoomValue] = useState(100)
+    const [baseSize, setBaseSize] = useState<{ width: number; height: number } | null>(null);
+
+    
+    const scale = zoomValue / 100
+
+    useEffect(() => {
+        return () => {
+            setZoomValue(100)
+            setBaseSize(null)
+        }
+    }, [url])
+
+    return (
+        <Modal
+            open={open}
+            onClose={onClose}
+            sx={{
+                display: "flex",
+                height: "100vh",
+
+                overflowY: "auto"
+            }}
+        >
+            <Box
+                sx={{
+                    mx: "auto"
+                }}
+            >
+                {url && (
+                    <img 
+                        src={url}
+                        style={{
+                            display: "block",
+                            width: baseSize ? `${baseSize.width * scale}px` : "auto",
+                            height: baseSize ? `${baseSize.height * scale}px` : "auto",
+                            transition: "width 0.1s ease, height 0.1s ease"
+                        }}
+                        onLoad={(e) => {
+                            // Запоминаем размеры картинки при открытии (при 100%)
+                            setBaseSize({
+                                width: e.currentTarget.clientWidth,
+                                height: e.currentTarget.clientHeight
+                            });
+                        }}
+                    />
+                )}
+                <Box
+                    sx={{
+                        position: "fixed",
+                        right: "15px",
+                        bottom: "15px"
+                    }}
+                >
+                    <Zoomer 
+                        value={zoomValue}
+                        onChange={(event, newValue) => setZoomValue(newValue)}
+                    />
+                </Box>
+            </Box>
+        </Modal>
+    )
+}
+
+function EditFilePreview({
+    file,
+    onClose,
+    onPreviewWithZoom,
+    uploadStatus,
+}: {
+    file: EditFile,
+    onClose: () => void,
+    onPreviewWithZoom: () => void,
+    uploadStatus?: UploadStatus,
+}) {
+    const hasPreview = typeof file.previewLink === "string" && Boolean(file.previewLink.trim())
 
     const {
         attributes, 
@@ -115,7 +304,7 @@ function EditFilePreview({
                 sx={{
                     transform: CSS.Translate.toString(transform),
                     aspectRatio: "2/3",
-                    zIndex: isDragging ? 10003: 1,
+                    zIndex: isDragging ? 10003 : 1,
                     position: "relative",
                     transition: transition
                 }}
@@ -126,10 +315,16 @@ function EditFilePreview({
                         width: "100%",
                         height: "100%",
                         borderRadius: "8px",
-                        backgroundImage: `url(${file.previewLink})`,
+                        backgroundImage: hasPreview ? `url(${file.previewLink})` : undefined,
                         backgroundSize: "cover"
                     }}
                 >
+                    {!hasPreview && <Poster src="" />}
+                    {uploadStatus && uploadStatus.state !== "idle" && (
+                        <Box sx={{position: "absolute", left: 6, bottom: 6}}>
+                            <UploadStatusChip state={uploadStatus.state} progress={uploadStatus.progress} />
+                        </Box>
+                    )}
                     <Box
                         sx={{
                             position: "absolute",
@@ -159,7 +354,7 @@ function EditFilePreview({
                             onClick={onClose}
                         />
                     </Box>
-                    <Box
+                    {hasPreview && <Box
                         sx={{
                             position: "absolute",
                             bottom: "5px",
@@ -169,7 +364,7 @@ function EditFilePreview({
                         }}
                     >
                         <ZoomInRoundedIcon 
-                            onClick={() => setZoomOpen(true)}
+                            onClick={() => onPreviewWithZoom?.()}
                             sx={{
                                 p: "4px",
                                 width: "32px",
@@ -179,7 +374,7 @@ function EditFilePreview({
                                 cursor: "pointer"
                             }}
                         />
-                    </Box>
+                    </Box>}
                 </Box>  
                 <Typography
                     sx={{
@@ -191,25 +386,6 @@ function EditFilePreview({
                     {file.name}
                 </Typography>
             </Box>
-            <Modal
-                open={zoomOpen}
-                onClose={() => setZoomOpen(false)}
-                sx={{
-                    display: "flex",
-                    justifyContent: "center",
-                    alignItems: "center",
-                    height: "100vh",
-
-                    overflowY: "auto"
-                }}
-            >
-                <img 
-                    src={file.previewLink}
-                    style={{
-                        height: "100%"
-                    }}
-                />
-            </Modal>
         </>
     )
 }
@@ -217,17 +393,19 @@ function EditFilePreview({
 export default function EditMultipleFilesInput({
     value,
     onChange,
-    sx
+    sx,
+    uploadStatuses,
+    onRetryUpload,
 }: {
     value: EditFile[],
     onChange: (value: EditFile[]) => void,
-    sx?: SxProps
+    sx?: SxProps,
+    uploadStatuses?: Record<string, UploadStatus>,
+    onRetryUpload?: (uuid: string) => void,
 }) {
-    const [ items, setItems ] = useState<string[]>([]);
+    const items = value.map(file => file.uuid)
 
-    useEffect(() => {
-        setItems(value.map(f => f.uuid))
-    }, [value])
+    const [zoomablePreviewURL, setZoomablePreviewURL] = useState<string | null>("")
     
     const sensors = useSensors(
         useSensor(PointerSensor),
@@ -256,7 +434,6 @@ export default function EditMultipleFilesInput({
     }
 
     function handleDeleteFiles() {
-        value.forEach(page => URL.revokeObjectURL(page.previewLink))
         onChange([])
     }
 
@@ -267,84 +444,88 @@ export default function EditMultipleFilesInput({
         onChange(newValue)
     }
 
-    useEffect(() => {
-        return () => {
-            value.forEach(page => {
-                URL.revokeObjectURL(page.previewLink)
-            });
-        }
-    }, [])
-
     return (
-        <Box
-            sx={{
-                display: "flex",
-                flexDirection: "column",
-                rowGap: 1,
-
-                ...sx
-            }}
-        >
+        <>
             <Box
                 sx={{
                     display: "flex",
-                    justifyContent: "end"
+                    flexDirection: "column",
+                    rowGap: 1,
+
+                    ...sx
                 }}
-            >
-                <Button
-                    variant="text"
-                    color="inherit"
-                    endIcon={<SortRoundedIcon />}
-                    onClick={handleSortFiles}
-                >
-                    Упорядочить
-                </Button>
-                <Button
-                    variant="text"
-                    color="inherit"
-                    endIcon={<DeleteRoundedIcon />}
-                    onClick={handleDeleteFiles}
-                >
-                    Очистить
-                </Button>
-            </Box>
-            <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragEnd={handleDragEnd}
             >
                 <Box
                     sx={{
-                        border: "1px solid",
-                        borderColor: "divider",
-                        borderRadius: "12px",
-                        p: "10px 14px",
-
-                        display: "grid",
-                        columnGap: "10px",
-                        rowGap: "15px",
-                        gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))",
+                        display: "flex",
+                        justifyContent: "end"
                     }}
                 >
-                    <SortableContext 
-                        items={items}
+                    <Button
+                        variant="text"
+                        color="inherit"
+                        endIcon={<SortRoundedIcon />}
+                        onClick={handleSortFiles}
                     >
-                        {value.map((v) => (
-                            <EditFilePreview 
-                                key={v.uuid} 
-                                file={v}
-                                onClose={() => {
-                                    URL.revokeObjectURL(v.previewLink)
-                                    onChange(value.filter((f) => (f.uuid != v.uuid)))
-                                }}
-                            />
-                        ))}
-                    </SortableContext>
-                    <EditFileInput 
-                        onChange={onInputFile}
-                    />
+                        Упорядочить
+                    </Button>
+                    <Button
+                        variant="text"
+                        color="inherit"
+                        endIcon={<DeleteRoundedIcon />}
+                        onClick={handleDeleteFiles}
+                    >
+                        Очистить
+                    </Button>
                 </Box>
-            </DndContext>
-        </Box>
+                <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleDragEnd}
+                >
+                    <Box
+                        sx={{
+                            border: "1px solid",
+                            borderColor: "divider",
+                            borderRadius: "12px",
+                            p: "10px 14px",
+
+                            display: "grid",
+                            columnGap: "10px",
+                            rowGap: "15px",
+                            gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))",
+                        }}
+                    >
+                        <SortableContext 
+                            items={items}
+                        >
+                            {value.map((v) => (
+                                <EditFilePreview 
+                                    key={v.uuid} 
+                                    file={v}
+                                    uploadStatus={uploadStatuses && (v.file
+                                        ? uploadStatuses[v.uuid] ?? {state: "queued"}
+                                        : {state: "idle"})}
+                                    onPreviewWithZoom={() => {
+                                        setZoomablePreviewURL(v.previewLink)
+                                    }}
+                                    onClose={() => {
+                                        onChange(value.filter((f) => (f.uuid != v.uuid)))
+                                    }}
+                                />
+                            ))}
+                        </SortableContext>
+                        <EditFileInput 
+                            onChange={onInputFile}
+                        />
+                    </Box>
+                </DndContext>
+            </Box>
+            <EditFileZoomablePreview 
+                open={zoomablePreviewURL != null}
+                url={zoomablePreviewURL}
+                onClose={() => setZoomablePreviewURL(null)}
+            />
+        </>
     )
 }

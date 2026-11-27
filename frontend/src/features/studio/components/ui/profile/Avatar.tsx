@@ -109,7 +109,7 @@ export default function ProfileAvatar({
                         />
                         <Button 
                             variant="contained" 
-                            color="secondary" 
+                            color="inherit" 
                             sx={{ml: "5px"}}
                             onClick={() => {onChange(null)}}
                         >Удалить</Button>

@@ -3,19 +3,20 @@ import EditHeaderNav from "@/components/edit/EditHeaderNav";
 import CreateChapterDialog from "@/features/studio/components/CreateChapterDialog";
 import { createChapter, selectCreateChapterDialogOpen, selectTranslation, setCreateChapterDialogOpen } from "@/features/studio/states/translation/page.slice";
 import { useAppDispatch, useAppSelector } from "@/lib/state/hooks";
+import { useIdempotency } from "@/lib/use-idempotency.hook";
 import { Box, Button, Divider, Grid, GridProps, Typography } from "@mui/material";
 import { useEffect, useState, useTransition } from "react";
 import StudioList from "../components/List";
 import StudioListHeaderLabel from "../components/ui/ListHeaderLabel";
 import { sum } from "lodash";
 import EditPageContainer from "@/components/edit/EditPageContainer";
-import { StudioChapter } from "../types/studio-chapter.type";
+import { StudioChapterListItem } from "../types/studio-chapter.type";
 import StudioPrivacyStatus from "../components/ui/PrivacyStatus";
 import { fetchChapters, selectChapters } from "../states/translation/chapters.slice";
 import { Entity } from "@/lib/types/Entity.type";
 import { routes, toHref } from "@/constants/routes/main.routes";
 import Link from "next/link";
-import { ChapterCreateFormSchema } from "../forms/CreateChapterForm";
+import { convertFormDataIntoJSON, type ChapterCreateSubmission } from "../forms/convertFormDataIntoJSON";
 
 const gridSizes: number[]  = [
     3,
@@ -68,7 +69,7 @@ function ChapterListHeader() {
     )
 }
 
-function ChapterListRow({chapterEntity}: {chapterEntity: Entity<StudioChapter>}) {
+function ChapterListRow({chapterEntity}: {chapterEntity: Entity<StudioChapterListItem>}) {
     const chapter = chapterEntity.data
 
     return (
@@ -105,7 +106,7 @@ function ChapterListRow({chapterEntity}: {chapterEntity: Entity<StudioChapter>})
                 </Box>
             </Grid>
             <Grid size={gridSizes[1]}>
-                <Typography>{chapter.extra_number || "нет"}</Typography>
+                <Typography>{chapter.extra_number ?? "нет"}</Typography>
             </Grid>
             <Grid size={gridSizes[2]}>
                 <StudioPrivacyStatus privacy={chapter.privacy.id}/>
@@ -126,13 +127,23 @@ export default function TranslationChaptersPage() {
     const translation = useAppSelector(selectTranslation)
     const chapters = useAppSelector(selectChapters)
     const createChapterDialogOpen = useAppSelector(selectCreateChapterDialogOpen)
+    const {getKey, reset} = useIdempotency()
 
-    const handleCreateChapter = async (data: ChapterCreateFormSchema) => {
+    const handleCreateChapter = async (data: ChapterCreateSubmission) => {
         if (!translation) return
 
+        const body = convertFormDataIntoJSON(data)
         await dispatch(createChapter({
-            translationId: translation.id, form: data
+            translationId: translation.id,
+            body,
+            idempotencyKey: getKey(body),
         })).unwrap()
+        reset()
+    }
+
+    const handleCloseCreateChapter = () => {
+        reset()
+        dispatch(setCreateChapterDialogOpen(false))
     }
 
     useEffect(() => {
@@ -166,9 +177,10 @@ export default function TranslationChaptersPage() {
                     <ChapterListRow key={c.data.id} chapterEntity={c}/>
                 ))}
             </StudioList>
-            <CreateChapterDialog 
+            <CreateChapterDialog
+                key={translation.id}
                 open={createChapterDialogOpen}
-                onClose={() => dispatch(setCreateChapterDialogOpen(false))}
+                onClose={handleCloseCreateChapter}
                 translationID={translation.id}
                 onSubmit={handleCreateChapter}
             />

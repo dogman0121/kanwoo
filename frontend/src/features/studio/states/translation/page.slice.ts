@@ -2,7 +2,6 @@ import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import { StudioTranslation } from "../../types/studio-translation.type";
 import { Entity } from "@/lib/types/Entity.type";
 import { TranslationContext } from "@/features/translations/types";
-import { ChapterCreateFormSchema } from "../../forms/CreateChapterForm";
 import { studioClientAPI } from "../../api/client.api";
 import { openSnackbar } from "@/features/global/states/app/slice";
 import { ApiError } from "@/lib/fetch/api-response.types";
@@ -27,33 +26,13 @@ type RootState = {
     studio: {translation: {page: StudioTranslationState}}
 }
 
-function prepareCreateChapterFormData(data: ChapterCreateFormSchema) {
-    const formData = new FormData()
-
-    formData.set("chapter", data.chapter.toString())
-    formData.set("privacy_id", data.privacyId.toString())
-    data.name && formData.set("name", data.name)
-    data.isExtra && formData.set("extra_number", data.extraNumber.toString())
-
-    const pagesOrder = [];
-    for (let p of data.pages) {
-        pagesOrder.push(p.name)
-        formData.append("pages", p.file!)
-    }
-    formData.set("pages_order", JSON.stringify(pagesOrder))
-
-    return formData
-}
-
 export const createChapter = createAsyncThunk(
     "studioTranslation/createChapterStatus",
-    async (data: {translationId: number, form: ChapterCreateFormSchema}, thunkAPI) => {
-        const {translationId, form} = data
-
-        const formData = prepareCreateChapterFormData(form)
+    async (data: {translationId: number, body: string, idempotencyKey: string}, thunkAPI) => {
+        const {translationId, body, idempotencyKey} = data
 
         try {
-            const response = await studioClientAPI.createChapter(translationId, formData)
+            const response = await studioClientAPI.createChapter(translationId, body, idempotencyKey)
 
             thunkAPI.dispatch(openSnackbar({type: 'success', message: "Глава добавлена успешно"}))
 
@@ -65,6 +44,12 @@ export const createChapter = createAsyncThunk(
             if (e instanceof ApiError) {
                 if (e.code == "already_exists") 
                     errorMessage = "Глава уже существует"
+                if (e.code === "operation_in_progress")
+                    errorMessage = "Запрос ещё выполняется. Повторите отправку."
+                if (e.code === "chapter_page_not_uploaded")
+                    errorMessage = "Страница отсутствует в хранилище. Удалите её и добавьте снова."
+                if (e.code === "idempotency_key_expired")
+                    errorMessage = "Срок повторной отправки истёк. Проверьте список глав."
             }
             thunkAPI.dispatch(openSnackbar({type: "error", message: `Произошла ошибка: ${errorMessage}`}))
             throw e

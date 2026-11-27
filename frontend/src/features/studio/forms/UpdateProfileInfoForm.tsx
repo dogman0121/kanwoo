@@ -1,6 +1,6 @@
 import { Box } from "@mui/material";
 import { Profile } from "@/features/profile/types/profile.type";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, useForm, UseFormReturn } from "react-hook-form";
 import { useAppDispatch, useAppSelector } from "@/lib/state/hooks";
 import { useRouter } from "next/navigation";
 import { studioClientAPI } from "../api/client.api";
@@ -26,19 +26,6 @@ const convertIntoForm = (profile: Profile) => {
         about: profile.about || "",
         links: profile.links || []
     }
-}
-
-const prepareAvatar = (avatar: string | File | null) => {
-    let avatarAction: "update" | "keep" | "delete";
-
-    if (avatar instanceof File)
-        avatarAction = "update"
-    else if (avatar == null)
-        avatarAction = "delete"
-    else
-        avatarAction = "keep"
-
-    return avatarAction
 }
 
 export interface ProfileUpdateInfoFormSchema {
@@ -72,29 +59,16 @@ export const useUpdateProfileInfoForm = (profile?: Profile | null) => {
     }
 }
 
-export function convertFormIntoFormData(data: ProfileUpdateInfoFormSchema) {
-    const formData = new FormData()
-
-    formData.set("name", data.name)
-    formData.set("slug", data.slug)
-    formData.set("avatar_action", prepareAvatar(data.avatar))
-    formData.set("about", data.about)
-    formData.set("links", JSON.stringify(data.links))
-    
-    if (data.avatar)
-        formData.set("avatar", data.avatar)
-
-    return formData
-}
-
 export default function UpdateProfileInfoForm({
-    control,
-    handleSubmit,
+    methods,
     onUpdate 
 }: {
+    methods: UseFormReturn<ProfileUpdateInfoFormSchema>,
     onUpdate?: (data: ProfileUpdateInfoFormSchema) => void
-} & ReturnType<typeof useUpdateProfileInfoForm>) {
+}) {
     const {validating, isValid, validate} = useSlugValidator()
+
+    const {handleSubmit, control} = methods
 
     const handleCreate = (data: ProfileUpdateInfoFormSchema) => {
         onUpdate?.(data)

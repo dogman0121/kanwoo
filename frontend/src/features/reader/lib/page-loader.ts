@@ -158,6 +158,7 @@ class PageLoader {
 
         for(let pageInd = rangeStart; pageInd <= rangeEnd; pageInd++) {
             const page = this._getPageByNumber(pageInd)
+            if (typeof page.link !== "string" || !page.link.trim()) continue
 
             if (this._getPageLoadingStatus(page.uuid).status != "loading"){
                 this.loadStatuses.set(page.uuid, {status: "loading"})

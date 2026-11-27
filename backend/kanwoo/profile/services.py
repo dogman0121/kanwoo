@@ -1,15 +1,15 @@
 from pytils.translit import slugify
 
 from kanwoo.image import ImageServiceFactory
+from kanwoo.models import FileModel
 from kanwoo.file_storage import FileStorageMixin
 from kanwoo.uuid import UUIDGenerator
 from kanwoo.database import DBTransaction
 
-from .dto import UpdateProfileDTO, CreateProfileDTO, ProfilePermissionDTO
-from .models import Profile, ProfileAvatar, ProfileLink
+from .dto import CreateProfileDTO, ProfilePermissionDTO
+from .models import Profile, ProfileAvatar
 from .repositories import ProfileRepository
-from .exceptions import ProfileNotFoundException, ProfileUpdateNotAllowedException, ProfileAlreadyExistsException
-from .schemas import AvatarAction
+from .exceptions import ProfileNotFoundException
 from .permissions import ProfileAuthPolicy, ProfilePolicy
 
 class ProfileAvatarService:
@@ -32,18 +32,23 @@ class ProfileAvatarService:
         image_service = self.image_service_factory.create(avatar_file, "JPEG")
 
         avatar_resized_file = image_service.resize(self.AVATAR_SIZE)
-        avatar_uuid = UUIDGenerator.generate_uuid()
+        avatar_uuid = UUIDGenerator.generate_uuid_v4()
         avatar_path = self.__get_avatar_path(avatar_uuid, ".jpg")
 
         profile_avatar = ProfileAvatar(
             uuid=avatar_uuid,
-            orig_filename=avatar_file.filename,
-            path=avatar_path
+            file=FileModel(
+                uuid=avatar_uuid,
+                path=avatar_path,
+                filename=avatar_file.filename,
+                mimetype=avatar_resized_file.content_type,
+                file_size=len(avatar_resized_file.bytes),
+            ),
         )
 
         self.storage.save(avatar_resized_file, avatar_path)
 
-        profile.avatar = profile_avatar
+        self.profile_repo.update_avatar(profile, profile_avatar)
 
 
     def delete_profile_avatar(self, profile):
@@ -129,14 +134,10 @@ class ProfileService:
     def __init__(
             self, 
             profile_repo: ProfileRepository,
-            profile_avatar_service: ProfileAvatarService,
             profile_policy: ProfilePolicy,
-            db_transaction: DBTransaction
         ):
         self.profile_repo = profile_repo
-        self.profile_avatar_service = profile_avatar_service
         self.profile_policy = profile_policy
-        self.db_transaction = db_transaction
 
     def user_get_profile_by_slug(self, profile, slug: str) -> Profile:
         profile = self.profile_repo.user_get_profile_by_slug(slug)
@@ -154,68 +155,11 @@ class ProfileService:
 
         return profile
     
-    def _get_slug(self, name: str):
-        slug = slugify(name)
-
-        # check if slug has been taken
-        try:
-            i = 1
-            while self.system_get_profile_by_slug(slug):
-                slug = slugify(name) + str(i)
-                i+=1
-        except ProfileNotFoundException:
-            return slug
-
-    def user_create_profile(self, profile, profile_dto: CreateProfileDTO): 
-        with self.db_transaction:
-            profile = Profile(
-                name=profile_dto.name,
-                slug=self._get_slug(profile_dto.slug),
-                about=profile_dto.about,
-                creator_id=profile_dto.creator_id,
-                owner_id=profile_dto.owner_id,
-            )
-
-            if profile_dto.avatar:
-                self.profile_avatar_service.update_profile_avatar(profile, profile_dto.avatar)
-
-            self.profile_repo.create_profile(profile)
-
-            return profile
-
     def user_get_profile_by_id(self, profile, profile_id):
         profile = self.profile_repo.user_get_profile_by_id(profile_id)
 
         if profile is None:
             raise ProfileNotFoundException
-        return profile
-
-    def user_update_profile(self, current_profile, profile: Profile, data: CreateProfileDTO):
-        if not self.profile_policy.can_edit(current_profile, profile):
-            raise ProfileUpdateNotAllowedException
-
-        if data.avatar_action == AvatarAction.REMOVE:
-            self.profile_avatar_service.delete_profile_avatar(profile)
-        elif data.avatar_action == AvatarAction.UPDATE:
-            self.profile_avatar_service.update_profile_avatar(profile, data.avatar)
-
-        if data.links:
-            links = [
-                ProfileLink(
-                    name=l.get("name"),
-                    link=l.get("link")
-                ) for l in data.links
-            ]
-        else:
-            links = []
-
-        profile.update({
-            "name": data.name,
-            "slug": data.slug,
-            "about": data.about,
-            "links": links,
-        }, commit=True)
-
         return profile
 
     def user_get_profile_permission(self, actor, profile):

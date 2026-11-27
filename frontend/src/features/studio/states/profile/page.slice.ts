@@ -5,7 +5,6 @@ import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import { ProfileUpdateInfoFormSchema } from "../../forms/UpdateProfileInfoForm";
 import { studioClientAPI } from "../../api/client.api";
 import { openSnackbar } from "@/features/global/states/app/slice";
-import { ApiError } from "@/lib/fetch/api-response.types";
 import prepareFileAction from "../../lib/prepare-file-action";
 
 export interface StudioPageProfileState {
@@ -27,17 +26,21 @@ type RootState = {
     studio: {profile: {page: StudioPageProfileState}}
 }
 
-function prepareUpdateProfileInfoFormData(data: ProfileUpdateInfoFormSchema) {
+function convertUpdateInfoFormIntoFormdata(form: ProfileUpdateInfoFormSchema) {
     const formData = new FormData()
-
-    formData.set("name", data.name)
-    formData.set("slug", data.slug)
-    formData.set("avatar_action", prepareFileAction(data.avatar))
-    formData.set("about", data.about)
-    formData.set("links", JSON.stringify(data.links))
     
-    if (data.avatar)
-        formData.set("avatar", data.avatar)
+    const body = JSON.stringify({
+        name: form.name,
+        slug: form.slug,
+        about: form.about,
+        links: form.links,
+        avatar: {
+            action: prepareFileAction(form.avatar)
+        }
+    })
+
+    formData.set("data", body)
+    form.avatar && formData.set("avatar", form.avatar)
 
     return formData
 }
@@ -47,7 +50,7 @@ export const updateProfileInfo = createAsyncThunk(
     async (data: {profileSlug: string, form: ProfileUpdateInfoFormSchema}, thunkAPI) => {
         const {profileSlug, form} = data
         
-        const formData = prepareUpdateProfileInfoFormData(form)
+        const formData = convertUpdateInfoFormIntoFormdata(form)
 
         try {
             const response = await studioClientAPI.updateProfileInfo(profileSlug, formData)

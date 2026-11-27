@@ -20,6 +20,7 @@ export default function ReaderPage({
     ref
 }: ReaderPageProps) {
     const pageLoader = usePageLoader()
+    const hasLink = typeof page.link === "string" && Boolean(page.link.trim())
 
     const [imageURLObject, setImageURLObject] = useState<string | null>(null)
     const [aspectRatio, setAspectRation] = useState("")
@@ -33,6 +34,8 @@ export default function ReaderPage({
     }
 
     useEffect(() => {
+        if (!hasLink) return
+
         const imageURL = pageLoader?.getPageImageUrlByUUID(page.uuid)
         if (imageURL) {
             setImageURLObject(imageURL)
@@ -43,7 +46,7 @@ export default function ReaderPage({
         return () => {
             pageLoader?.removeLoadingCallback(page, onPageLoaded)
         }
-    }, [page, pageLoader])
+    }, [hasLink, page, pageLoader])
 
     useEffect(() => {
         const width = page.width
@@ -54,7 +57,7 @@ export default function ReaderPage({
 
     return(
         <>
-            {(!imageURLObject || disableRender) ?
+            {(!hasLink || !imageURLObject || disableRender) ?
                 <Box
                     sx={{
                         aspectRatio: aspectRatio,

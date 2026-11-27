@@ -1,5 +1,5 @@
-from sqlalchemy import func, select, or_, and_, asc, desc
-from sqlalchemy.orm import Mapped, mapped_column, Query, Session
+from sqlalchemy import ForeignKey, func, select, or_, and_, asc, desc
+from sqlalchemy.orm import Mapped, mapped_column, declared_attr, relationship, Query, Session
 from typing import Optional
 
 from kanwoo import db, file_storage
@@ -63,6 +63,31 @@ class FileModel(BaseModel):
     hash: Mapped[Optional[str]] = mapped_column(nullable=True)
     file_size: Mapped[Optional[int]] = mapped_column(nullable=True)
     uploaded_by_profile_id: Mapped[Optional[int]] = mapped_column(nullable=True)
+
+
+class StoredMediaMixin:
+    uuid: Mapped[str] = mapped_column(primary_key=True)
+    file_uuid: Mapped[str] = mapped_column(ForeignKey("file.uuid"))
+    is_deleted: Mapped[bool] = mapped_column(nullable=True, default=False)
+
+    @declared_attr
+    def file(cls) -> Mapped[FileModel]:
+        return relationship(lazy="joined")
+
+    @property
+    def path(self):
+        return self.file.path or None
+
+    @property
+    def orig_filename(self):
+        return self.file.filename
+
+    def delete(self):
+        self.is_deleted = True
+        self.file.is_deleted = True
+
+    def __str__(self):
+        return file_storage.get_url(self.path) if self.path else ""
 
 
 class Privacy(BaseModel):

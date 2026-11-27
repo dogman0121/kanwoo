@@ -1,9 +1,7 @@
-import { Chapter } from "@/types/chapter";
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import { studioClientAPI } from "../../api/client.api";
 import { Entity } from "@/lib/types/Entity.type";
 import { StudioChapter } from "../../types/studio-chapter.type";
-import { ChapterUpdateFormSchema } from "../../forms/UpdateChapterInfoForm";
 import { openSnackbar } from "@/features/global/states/app/slice";
 import { ApiError } from "@/lib/fetch/api-response.types";
 
@@ -36,42 +34,17 @@ export const fetchChapter = createAsyncThunk(
     }
 )
 
-function prepareFormData(data: ChapterUpdateFormSchema) {
-    const formData = new FormData()
-
-    formData.set("chapter", data.chapter.toString())
-    formData.set("privacy_id", data.privacyId.toString())
-    data.name && formData.set("name", data.name)
-    data.isExtra && formData.set("extra_number", data.extraNumber.toString())
-
-    const pagesOrder = [];
-    for (let p of data.pages) {
-        if (p.file) {
-            pagesOrder.push(p.name)
-            formData.append("pages", p.file)
-        } else {
-            pagesOrder.push(p.uuid)
-        }
-    }
-    formData.set("pages_order", JSON.stringify(pagesOrder))
-
-    return formData
-}
-
 export const updateChapter = createAsyncThunk(
     "studioChapter/updateChapterStatus",
-    async (data: {chapterId: number, form: ChapterUpdateFormSchema}, thunkAPI) => {
-        const {chapterId, form} = data
-
-        const formData = prepareFormData(form)
+    async (data: {chapterId: number, body: string, idempotencyKey: string}, thunkAPI) => {
+        const {chapterId, body, idempotencyKey} = data
 
         try {
-            const response = await studioClientAPI.updateChapter(chapterId, formData)
+            const response = await studioClientAPI.updateChapter(chapterId, body, idempotencyKey)
 
             thunkAPI.dispatch(openSnackbar({type: "success", message: "Глава обновлена успешно"}))
             return {
                 chapterId,
-                form,
                 response
             }
         } catch (e) {

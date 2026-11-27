@@ -18,10 +18,7 @@ def create_chapter_handler(
     translation_id,
     chapter_service: StudioChapterService = Provide[AppContainer.studio_chapter_service],
 ):
-    try:
-        data = CreateStudioChapterSchema().load(request.get_json())
-    except ValidationError as exc:
-        raise ApiBadRequest(error="invalid_chapter", detail=exc.messages) from exc
+    data = CreateStudioChapterSchema().load(request.json)
 
     chapter = chapter_service.create_chapter(current_profile, translation_id, data)
 

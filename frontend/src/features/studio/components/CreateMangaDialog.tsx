@@ -1,11 +1,5 @@
 import { Button, Dialog, DialogActions, DialogContent, DialogTitle } from "@mui/material"
-import Create, { MangaCreateFormSchema, useCreateForm } from "../forms/CreateMangaForm"
-import AppSnackbar from "@/components/app/AppSnackbar"
-import { useState } from "react"
-import { StudioManga } from "../types/studio-manga.type"
-import { useAppDispatch } from "@/lib/state/hooks"
-import { openSnackbar } from "@/features/global/states/app/slice"
-import { setCreateMangaDialogOpen } from "../states/profile/page.slice"
+import CreateMangaForm, { MangaCreateFormSchema, useCreateMangaForm } from "../forms/CreateMangaForm"
 
 export default function CreateMangaDialog({
     open,
@@ -16,9 +10,9 @@ export default function CreateMangaDialog({
     onCreate?: (data: MangaCreateFormSchema) => void,
     onClose?: () => void
 }) {
-    const dispatch = useAppDispatch()
+    const methods = useCreateMangaForm()
 
-    const {formState, ...formProps} = useCreateForm()
+    const {formState} = methods
 
     return (
         <>
@@ -34,10 +28,9 @@ export default function CreateMangaDialog({
             >
                 <DialogTitle>Создание тайтла</DialogTitle>
                 <DialogContent>
-                    <Create 
+                    <CreateMangaForm 
                         onCreate={onCreate}
-                        formState={formState}
-                        {...formProps}
+                        methods={methods}
                     />
                 </DialogContent>
                 <DialogActions>

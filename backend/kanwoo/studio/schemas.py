@@ -1,9 +1,10 @@
+import json
+
 from marshmallow import fields, post_load, Schema, validate, validates_schema, ValidationError
-from enum import Enum
 
 from .dto import ChapterPageDTO, CreateStudioChapterDTO, UpdateStudioChapterDTO
 
-from kanwoo.schemas import Json, File
+from kanwoo.schemas import File
 from kanwoo.main.schemas import validate_upload_token
 from kanwoo.entities import FileAction
 from kanwoo.manga.schemas import (
@@ -169,20 +170,22 @@ class UpdateStudioChapterSchema(StudioChapterDetailsSchema):
     def to_dto(self, data, **kwargs):
         return UpdateStudioChapterDTO(**data)
 
+
+def validate_file_actions(data, file_fields, update_action):
+    errors = {}
+    for name in file_fields:
+        expects_file = data[f"{name}_action"] == update_action
+        if (name in data) != expects_file:
+            errors[name] = ["A file is required for update." if expects_file else "A file is only accepted for update."]
+    if errors:
+        raise ValidationError(errors)
+
+
 class CreateUpdateNameTranslationSchema(Schema):
-    lang = fields.String()
-    name = fields.String()
+    lang = fields.Integer(strict=True, required=True)
+    name = fields.String(required=True)
 
-class CreateStudioMangaSchema(Schema):
-    name = fields.String()
-    name_translations = Json(fields.Nested(CreateUpdateNameTranslationSchema), allow_none=True)
-    description = fields.String(allow_none=True)
-    status_id = fields.Integer()
-    type_id = fields.Integer()
-    adult_id = fields.Integer()
-    genres_ids = fields.List(fields.Integer())
-    year = fields.Integer()
-    privacy_id = fields.Integer()
+class CreateStudioMangaFileSchema(Schema):
     background = File(
         max_file_size=MANGA_BACKGROUND_MAX_SIZE, 
         allowed_file_types=MANGA_BACKGROUND_ALLOWED_TYPES, 
@@ -196,29 +199,18 @@ class CreateStudioMangaSchema(Schema):
         allow_none=True
     )
 
-class UpdateStudioMangaSchema(Schema):
-    slug = fields.String()
-    name = fields.String()
-    name_translations = Json(fields.Nested(CreateUpdateNameTranslationSchema))
+class CreateStudioMangaDataSchema(Schema):
+    name = fields.String(required=True)
     description = fields.String(allow_none=True)
-    status_id = fields.Integer()
-    type_id = fields.Integer()
-    adult_id = fields.Integer()
-    genres_ids = fields.List(fields.Integer())
-    year = fields.Integer()
-    privacy_id = fields.Integer()
-    background = File(
-        max_file_size=MANGA_BACKGROUND_MAX_SIZE, 
-        allowed_file_types=MANGA_BACKGROUND_ALLOWED_TYPES, 
-        allowed_file_ext=MANGA_BACKGROUND_ALLOWED_EXTENSIONS,
-        allow_none=True
-    )
-    poster = File(
-        max_file_size=MANGA_POSTER_MAX_SIZE, 
-        allowed_file_types=MANGA_POSTER_ALLOWED_TYPES, 
-        allowed_file_ext=MANGA_POSTER_ALLOWED_EXTENSIONS,
-        allow_none=True
-    )
+    status_id = fields.Integer(required=True, strict=True)
+    type_id = fields.Integer(required=True, strict=True)
+    adult_id = fields.Integer(required=True, strict=True)
+    genres_ids = fields.List(fields.Integer(strict=True), load_default=list)
+    year = fields.Integer(required=True, strict=True)
+    privacy_id = fields.Integer(required=True, strict=True)
+    
+
+class UpdateStudioMangaFileSchema(Schema):
     promo_name = File(
         max_file_size=MANGA_PROMO_NAME_MAX_SIZE, 
         allowed_file_types=MANGA_PROMO_NAME_ALLOWED_TYPES, 
@@ -237,28 +229,60 @@ class UpdateStudioMangaSchema(Schema):
         allowed_file_ext=MANGA_PROMO_BACKGROUND_ALLOWED_EXTENSIONS,
         allow_none=True
     )
-    background_action = fields.Enum(FileAction, by_value=True)
-    poster_action = fields.Enum(FileAction, by_value=True)
-    promo_name_action = fields.Enum(FileAction, by_value=True)
-    promo_logo_action = fields.Enum(FileAction, by_value=True)
-    promo_background_action = fields.Enum(FileAction, by_value=True)
+    background = File(
+        max_file_size=MANGA_BACKGROUND_MAX_SIZE, 
+        allowed_file_types=MANGA_BACKGROUND_ALLOWED_TYPES, 
+        allowed_file_ext=MANGA_BACKGROUND_ALLOWED_EXTENSIONS,
+        allow_none=True
+    )
+    poster = File(
+        max_file_size=MANGA_POSTER_MAX_SIZE, 
+        allowed_file_types=MANGA_POSTER_ALLOWED_TYPES, 
+        allowed_file_ext=MANGA_POSTER_ALLOWED_EXTENSIONS,
+        allow_none=True
+    )
+
+class UpdateFileSchema(Schema):
+    action = fields.Enum(FileAction, by_value=True, load_default=FileAction.KEEP)
+
+class UpdateStudioMangaDataSchema(Schema):
+    name = fields.String(required=True)
+    description = fields.String(allow_none=True)
+    status_id = fields.Integer(required=True, strict=True)
+    type_id = fields.Integer(required=True, strict=True)
+    adult_id = fields.Integer(required=True, strict=True)
+    genres_ids = fields.List(fields.Integer(strict=True), load_default=list)
+    year = fields.Integer(required=True, strict=True)
+    privacy_id = fields.Integer(required=True, strict=True)
+    slug = fields.String(required=True)
+    name_translations = fields.List(fields.Nested(CreateUpdateNameTranslationSchema), load_default=list)
+    
+    background = fields.Nested(UpdateFileSchema)
+    poster = fields.Nested(UpdateFileSchema)
+    promo_name = fields.Nested(UpdateFileSchema)
+    promo_logo = fields.Nested(UpdateFileSchema)
+    promo_background = fields.Nested(UpdateFileSchema)
+
 
 class CreateUpdateProfileLinkSchema(Schema):
-    name = fields.String()
-    link = fields.String()
-
-class UpdateStudioProfileSchema(Schema):
     name = fields.String(required=True)
-    slug = fields.String(required=True)
-    about = fields.String()
-    links = Json(fields.Nested(CreateUpdateProfileLinkSchema))
-    avatar_action = fields.Enum(AvatarAction, by_value=True)
+    link = fields.String(required=True)
+
+class UpdateStudioProfileFileSchema(Schema):
     avatar = File(
         max_file_size=PROFILE_AVATAR_MAX_SIZE, 
         allowed_file_types=PROFILE_AVATAR_ALLOWED_TYPES, 
         allowed_file_ext=PROFILE_AVATAR_ALLOWED_EXTENSIONS,
         allow_none=True
     )
+
+class UpdateStudioProfileDataSchema(Schema):
+    name = fields.String(required=True)
+    slug = fields.String(required=True)
+    about = fields.String(load_default="")
+    links = fields.List(fields.Nested(CreateUpdateProfileLinkSchema), load_default=list)
+    avatar = fields.Nested(UpdateFileSchema)
+
 
 class GetStudioProfileSchema(GetProfileSchema):
     pass

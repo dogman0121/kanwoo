@@ -11,6 +11,7 @@ class Config:
 
     SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URI')
     CACHE_URI = os.getenv("CACHE_URI")
+    CELERY_BROKERY_URI = os.getenv("CELERY_BROKERY_URI")
 
     MAX_CONTENT_LENGTH = 100 * 1024 * 1024
 
@@ -40,6 +41,11 @@ class Config:
 
     DOMAIN = os.environ.get("DOMAIN")
     CDN_URL = os.environ.get("CDN_URL")
+    S3_BUCKET_NAME = os.environ.get("S3_BUCKET_NAME")
+    S3_ENDPOINT_URL = os.environ.get("S3_ENDPOINT_URL")
+    S3_ACCESS_KEY_ID = os.environ.get("S3_ACCESS_KEY_ID")
+    S3_ACCESS_SECRET_KEY = os.environ.get("S3_ACCESS_SECRET_KEY")
+    S3_REGION_NAME = os.environ.get("S3_REGION_NAME")
     FRONTEND_URL = os.environ.get("FRONTEND_URL")
 
     # Переменные, которые предназначены для работы с yandex oauth

@@ -17,7 +17,7 @@ from .handlers import (
 bp = Blueprint("main", __name__)
 
 bp.add_url_rule("/meta", view_func=get_meta_handler)
-bp.add_url_rule("/uploads", view_func=get_upload_urls_handler)
+bp.add_url_rule("/uploads", view_func=get_upload_urls_handler, methods=["POST"])
 
 @bp.route("/feedbacks", methods=["POST"])
 @profile_required(optional=True)

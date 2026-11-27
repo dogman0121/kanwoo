@@ -16,37 +16,38 @@ type RootState = {
     studio: {profile: {manga: typeof initialState}}
 }
 
-
-function prepareCreateMangaFormData(form: MangaCreateFormSchema) {
+function convertCreateFormIntoFormData(form: MangaCreateFormSchema) {
     const formData = new FormData()
 
-    formData.set("name", form.name)
-    formData.set("privacy_id", form.privacy.toString())
-    formData.set("description", form.description)
-    formData.set("year", form.year.toString())
-    formData.set("type_id", form.type.toString())
-    formData.set("status_id", form.status.toString())
-    formData.set("adult_id", form.adult.toString())
+    const body = JSON.stringify({
+        name: form.name,
+        privacy_id: form.privacyId,
+        description: form.description,
+        year: form.year,
+        type_id: form.typeId,
+        status_id: form.statusId,
+        adult_id: form.adultId,
+        genres_ids: form.genresIds,
+    })
 
-    for (let g of form.genres) {
-        formData.set("genre_id", g.toString())
-    }
+    formData.set("data", body)
 
-    formData.set("poster", form.poster)
-    formData.set("background", form.background)
+    form.poster && formData.set("poster", form.poster)
+    form.background && formData.set("background", form.background)
 
     return formData
 }
 
+
 export const createManga = createAsyncThunk(
     "studioProfileManga/createMangaStatus",
-    async (data: {profileSlug: string, form: MangaCreateFormSchema}, thunkAPI) => {
-        const {profileSlug, form} = data
+    async (data: {idempotencyKey: string, profileSlug: string, form: MangaCreateFormSchema}, thunkAPI) => {
+        const {profileSlug, form, idempotencyKey} = data
         
-        const formData = prepareCreateMangaFormData(form)
+        const formData = convertCreateFormIntoFormData(form)
 
         try {
-            const response = await studioClientAPI.createManga(profileSlug, formData)
+            const response = await studioClientAPI.createManga(profileSlug, formData, idempotencyKey)
 
             thunkAPI.dispatch(openSnackbar({type: 'success', message: "Глава добавлена успешно"}))
 

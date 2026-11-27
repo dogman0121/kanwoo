@@ -9,7 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from kanwoo import db
 from kanwoo.permissions import ADMIN_ROLE
 from kanwoo.entities import  Privacy
-from kanwoo.models import BaseModel, FileModelMixin
+from kanwoo.models import BaseModel, StoredMediaMixin
 from kanwoo.moderation.models import MangaModerationStatus
 from kanwoo.moderation.entity import ModerationStatus
 from kanwoo.profile.models import Profile
@@ -85,7 +85,7 @@ class NameTranslation(BaseModel):
             "name": self.name,
         }
 
-class PosterFile(BaseModel, FileModelMixin):
+class PosterFile(StoredMediaMixin, BaseModel):
     __tablename__ = "manga_poster_file"
     uuid: Mapped[str] = mapped_column(primary_key=True)
     type: Mapped[str] = mapped_column(nullable=True)
@@ -133,22 +133,22 @@ class Poster(BaseModel):
         for file in self.files:
             file.delete()
 
-class Background(BaseModel, FileModelMixin):
+class Background(StoredMediaMixin, BaseModel):
     __tablename__ = "manga_background"
 
     manga: Mapped["Manga"] = relationship(back_populates="background")
 
-class PromoName(BaseModel, FileModelMixin):
+class PromoName(StoredMediaMixin, BaseModel):
     __tablename__ = "manga_promo_name"
 
     manga: Mapped["Manga"] = relationship(back_populates="promo_name")
 
-class PromoLogo(BaseModel, FileModelMixin):
+class PromoLogo(StoredMediaMixin, BaseModel):
     __tablename__ = "manga_promo_logo"
 
     manga: Mapped["Manga"] = relationship(back_populates="promo_logo")
 
-class PromoBackground(BaseModel, FileModelMixin):
+class PromoBackground(StoredMediaMixin, BaseModel):
     __tablename__ = "manga_promo_background"
 
     manga: Mapped["Manga"] = relationship(back_populates="promo_background")

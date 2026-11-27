@@ -5,7 +5,7 @@ from kanwoo import AppContainer, respond
 from kanwoo.profile.middleware import profile_required
 from kanwoo.translation.services import TranslationService
 from kanwoo.chapter.services import ChapterService
-from kanwoo.studio.schemas import GetStudioChapterSchema
+from kanwoo.studio.schemas import GetStudioChapterListItemSchema
 
 @profile_required()
 @inject
@@ -20,5 +20,5 @@ def get_translations_chapters_handler(
     chapters = chapter_service.user_get_translation_chapters(current_profile, translation)
 
     return respond(
-        data=GetStudioChapterSchema(many=True).dump(chapters)
+        data=GetStudioChapterListItemSchema(many=True).dump(chapters)
     )

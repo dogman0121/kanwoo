@@ -4,11 +4,11 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.ext.hybrid import hybrid_property
 from datetime import datetime, timezone
 
-from kanwoo.models import BaseModel, FileModelMixin
+from kanwoo.models import BaseModel, StoredMediaMixin
 
 
 
-class ProfileAvatar(BaseModel, FileModelMixin):
+class ProfileAvatar(StoredMediaMixin, BaseModel):
     __tablename__ = 'profile_avatar'
 
     
@@ -55,7 +55,7 @@ class Profile(BaseModel):
 
     links: Mapped[List[ProfileLink]] = relationship(uselist=True)
     collections: Mapped[List["Collection"]] = relationship(uselist=True, back_populates="creator")
-    avatar: Mapped[ProfileAvatar] = relationship()
+    avatar: Mapped[ProfileAvatar | None] = relationship()
     unread_notifications: Mapped[List["Notification"]] = relationship(
         back_populates="recipient", 
         primaryjoin=""" and_(Profile.id==Notification.recipient_id, Notification.is_read==False) """,

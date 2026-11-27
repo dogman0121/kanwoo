@@ -11,4 +11,6 @@ class Idempotency(BaseModel):
     request_hash: Mapped[str] = mapped_column(nullable=True)
     status_code: Mapped[int] = mapped_column(nullable=True)
     body: Mapped[str] = mapped_column(nullable=True)
-    expires_at: Mapped[str] = mapped_column(default=lambda: datetime.now(timezone.utc) + timedelta(minutes=30))
+    expires_at: Mapped[str] = mapped_column(
+        default=lambda: (datetime.now(timezone.utc) + timedelta(minutes=30)).isoformat()
+    )

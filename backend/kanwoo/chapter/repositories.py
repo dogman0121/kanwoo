@@ -1,19 +1,27 @@
 from sqlalchemy import select, exists, func, or_
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import selectinload
 
 from kanwoo.entities import Privacy
 from kanwoo.models import cursor_paginate
 from kanwoo.repositories import BaseRepository
 
 from .exceptions import ChapterWithNumberAlreadyExists
-from .models import CHAPTER_NUMBER_CONSTRAINT, Chapter, Page
+from .entity import ChapterPagesOptimizationStatus
+from .models import CHAPTER_NUMBER_CONSTRAINT, Chapter, Page, ChapterPage
 
 class ChapterRepository(BaseRepository):
+
+    def get_waiting_optimization_ids(self) -> list[int]:
+        stmt = select(Chapter.id).where(
+            Chapter.optimization_status_id == ChapterPagesOptimizationStatus.WAITING.value
+        ).order_by(Chapter.id)
+        return list(self.db_session.scalars(stmt))
 
     def system_get_chapter_by_id(self, chapter_id):
         return self.db_session.execute(select(Chapter).filter_by(chapter_id)).scalar()
 
-    def get_chapter_by_id(self, chapter_id: int, public=True):
+    def get_chapter_by_id(self, chapter_id: int, public=True, *, for_update=False):
         stmt = (select(Chapter)
             .where(
                 Chapter.id == chapter_id,
@@ -26,6 +34,13 @@ class ChapterRepository(BaseRepository):
                     Chapter.privacy_id == Privacy.PUBLIC.value,
                     Chapter.privacy_id == Privacy.BY_LINK.value
                 ),
+            )
+
+        if for_update:
+            stmt = (
+                stmt.with_for_update()
+                .options(selectinload(Chapter.chapter_pages))
+                .execution_options(populate_existing=True)
             )
 
         return self.db_session.execute(stmt).scalar_one_or_none()
@@ -57,6 +72,10 @@ class ChapterRepository(BaseRepository):
     
     def create_chapter(self, chapter: Chapter):
         self.db_session.add(chapter)
+        self.flush_chapter()
+        return chapter
+
+    def flush_chapter(self):
         try:
             self.db_session.flush()
         except IntegrityError as error:
@@ -65,8 +84,6 @@ class ChapterRepository(BaseRepository):
                 raise ChapterWithNumberAlreadyExists() from error
             raise
 
-        return chapter
-    
     def update_chapter(self, chapter: Chapter, data: dict):
         chapter.update(data, commit=True)
 
@@ -76,10 +93,10 @@ class ChapterRepository(BaseRepository):
         page.is_deleted = True
 
     def create_page(self, chapter: Chapter, page: Page):
-        chapter.pages.append(page)
+        chapter.legacy_pages.append(page)
 
     def delete_chapter(self, chapter: Chapter):
-        for p in chapter.pages:
+        for p in chapter.legacy_pages:
             p.is_deleted = True
             
         chapter.delete()
@@ -104,3 +121,14 @@ class ChapterRepository(BaseRepository):
         )
 
         return self.db_session.execute(stmt).scalar()
+
+    def get_chapter_original_pages(self, chapter_id):
+        stmt = (
+            select(ChapterPage)
+            .where(
+                ChapterPage.chapter_id == chapter_id,
+                ChapterPage.is_orig == True
+            )
+        )
+
+        return self.db_session.execute(stmt).scalars().all()

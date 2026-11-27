@@ -86,6 +86,7 @@ class MangaRepository(BaseRepository):
     def delete_poster(self, manga: Manga):
         if manga.poster:
             manga.poster.delete()
+            manga.poster = None
 
     def set_poster(self, manga: Manga, poster):
         if manga.poster:
@@ -96,24 +97,28 @@ class MangaRepository(BaseRepository):
     def set_background(self, manga: Manga, background):
         if manga.background:
             manga.background.delete()
+            manga.background = None
 
         manga.background = background
 
     def set_promo_name(self, manga: Manga, promo_name):
         if manga.promo_name:
             manga.promo_name.delete()
+            manga.promo_name = None
 
         manga.promo_name = promo_name
 
     def set_promo_logo(self, manga: Manga, promo_logo):
         if manga.promo_logo:
             manga.promo_logo.delete()
+            manga.promo_logo = None
 
         manga.promo_logo = promo_logo
 
     def set_promo_background(self, manga: Manga, promo_background):
         if manga.promo_background:
             manga.promo_background.delete()
+            manga.promo_background = None
 
         manga.promo_background = promo_background
 

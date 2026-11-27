@@ -1,38 +1,67 @@
+x-backend: &backend
+  image: "cr.yandex/$CR_REGISTRY/$CR_REPOSITORY:$IMAGE_TAG"
+  restart: always
+  environment:
+    - SECRET_KEY=$SECRET_KEY
+    - DATABASE_URI=$DATABASE_URI
+    - CACHE_URI=$CACHE_URI
+    - CELERY_BROKERY_URI=${CELERY_BROKERY_URI:-redis://kanwoo-backend_redis:6379/0}
+    - S3_BUCKET_NAME=${S3_BUCKET_NAME:-}
+    - S3_ENDPOINT_URL=${S3_ENDPOINT_URL:-}
+    - S3_REGION_NAME=${S3_REGION_NAME:-}
+    - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY_ID:-}
+    - S3_ACCESS_SECRET_KEY=${S3_ACCESS_SECRET_KEY:-}
+    - DOMAIN=$DOMAIN
+    - MAIL_SERVER=$MAIL_SERVER
+    - MAIL_PORT=$MAIL_PORT
+    - MAIL_USERNAME=$MAIL_USERNAME
+    - MAIL_PASSWORD=$MAIL_PASSWORD
+    - MAIL_DEFAULT_SENDER=$MAIL_DEFAULT_SENDER
+    - COOKIE_DOMAIN=$COOKIE_DOMAIN
+    - ACCESS_COOKIE_NAME=$ACCESS_COOKIE_NAME
+    - REFRESH_COOKIE_NAME=$REFRESH_COOKIE_NAME
+    - ACCESS_CSRF_COOKIE_NAME=$ACCESS_CSRF_COOKIE_NAME
+    - REFRESH_CSRF_COOKIE_NAME=$REFRESH_CSRF_COOKIE_NAME
+    - AUTH_PROFILE_COOKIE_NAME=$AUTH_PROFILE_COOKIE_NAME
+    - UPLOAD_DIR=$UPLOAD_DIR
+    - LOG_DIR=$LOG_DIR
+    - CDN_URL=$CDN_URL
+    - FRONTEND_URL=$FRONTEND_URL
+    - YANDEX_OAUTH_CLIENT_SECRET=$YANDEX_OAUTH_CLIENT_SECRET
+    - YANDEX_OAUTH_LOGIN_URL=$YANDEX_OAUTH_LOGIN_URL
+    - YANDEX_AVATARS_URL=$YANDEX_AVATARS_URL
+    - YANDEX_AVATARS_SIZE=$YANDEX_AVATARS_SIZE
+
 services:
   kanwoo-backend_redis:
     image: redis:latest
     restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   kanwoo-backend:
-    image: "cr.yandex/$CR_REGISTRY/$CR_REPOSITORY:$IMAGE_TAG"
-    restart: always
-    environment:
-      - SECRET_KEY=$SECRET_KEY
-      - DATABASE_URI=$DATABASE_URI
-      - CACHE_URI=$CACHE_URI
-      - DOMAIN=$DOMAIN
-      - MAIL_SERVER=$MAIL_SERVER
-      - MAIL_PORT=$MAIL_PORT
-      - MAIL_USERNAME=$MAIL_USERNAME
-      - MAIL_PASSWORD=$MAIL_PASSWORD
-      - MAIL_DEFAULT_SENDER=$MAIL_DEFAULT_SENDER
-      - COOKIE_DOMAIN=$COOKIE_DOMAIN
-      - ACCESS_COOKIE_NAME=$ACCESS_COOKIE_NAME
-      - REFRESH_COOKIE_NAME=$REFRESH_COOKIE_NAME
-      - ACCESS_CSRF_COOKIE_NAME=$ACCESS_CSRF_COOKIE_NAME
-      - REFRESH_CSRF_COOKIE_NAME=$REFRESH_CSRF_COOKIE_NAME
-      - AUTH_PROFILE_COOKIE_NAME=$AUTH_PROFILE_COOKIE_NAME
-      - UPLOAD_DIR=$UPLOAD_DIR
-      - LOG_DIR=$LOG_DIR
-      - DOMAIN=$DOMAIN
-      - CDN_URL=$CDN_URL
-      - FRONTEND_URL=$FRONTEND_URL
-      - YANDEX_OAUTH_CLIENT_SECRET=$YANDEX_OAUTH_CLIENT_SECRET
-      - YANDEX_OAUTH_LOGIN_URL=$YANDEX_OAUTH_LOGIN_URL
-      - YANDEX_AVATARS_URL=$YANDEX_AVATARS_URL
-      - YANDEX_AVATARS_SIZE=$YANDEX_AVATARS_SIZE
+    <<: *backend
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 8000), timeout=2).close()"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 60s
     ports:
       - "$PORT:8000"
     volumes:
       - $UPLOAD_DIR:/app/kanwoo/static/
       - $LOG_DIR:/app/kanwoo/logs/
+
+  kanwoo-backend_celery:
+    <<: *backend
+    entrypoint: ["poetry", "run", "celery"]
+    command: ["-A", "manage:celery_app", "worker", "--concurrency=1", "--beat", "--loglevel=INFO"]
+    depends_on:
+      kanwoo-backend_redis:
+        condition: service_healthy
+      kanwoo-backend:
+        condition: service_healthy

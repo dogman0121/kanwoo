@@ -45,7 +45,5 @@ class ProfileContainer(containers.DeclarativeContainer):
     profile_service = providers.Factory(
         ProfileService,
         profile_repo=profile_repo,
-        profile_avatar_service=profile_avatar_service,
         profile_policy=profile_policy,
-        db_transaction=db_transaction
     )

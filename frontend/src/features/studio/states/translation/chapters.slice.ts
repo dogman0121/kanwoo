@@ -1,14 +1,20 @@
 import { createAsyncThunk, createEntityAdapter, createSlice, PayloadAction } from "@reduxjs/toolkit";
-import { StudioManga } from "../../types/studio-manga.type";
-import { Chapter } from "@/types/chapter";
 import { createChapter, fetchTranslation } from "./page.slice";
 import { Entity } from "@/lib/types/Entity.type";
 import { studioClientAPI } from "../../api/client.api";
-import { StudioChapter } from "../../types/studio-chapter.type";
+import { StudioChapterListItem } from "../../types/studio-chapter.type";
 
 const chaptersAdapter = createEntityAdapter({
-    selectId: (chapter: Entity<StudioChapter>) => chapter.data.id
+    selectId: (chapter: Entity<StudioChapterListItem>) => chapter.data.id
 })
+
+export const fetchChapterCreateForm = createAsyncThunk(
+    "studio_translation_chapters/fetchCreateForm",
+    async (translationId: number) => {
+        const response = await studioClientAPI.getChapterCreateForm(translationId)
+        return response.data
+    }
+)
 
 const initialState = chaptersAdapter.getInitialState()
 
@@ -32,17 +38,17 @@ export const translationChaptersSlice = createSlice({
     name: "studio_translation_chapters",
     initialState,
     reducers: {
-        setChaptersList: (state, action: PayloadAction<Entity<StudioChapter>[]>) => {
+        setChaptersList: (state, action: PayloadAction<Entity<StudioChapterListItem>[]>) => {
 
             chaptersAdapter.setMany(state, action.payload)
         },
     },
     extraReducers: (builder) => (builder
         .addCase(createChapter.fulfilled, (state, action) => {
-            const {response} = action.payload
+            const {id, name, chapter, extra_number, privacy} = action.payload.response.data
 
             chaptersAdapter.addOne(state, {
-                data: response.data
+                data: {id, name, chapter, extra_number, privacy}
             })
         })
         .addCase(fetchTranslation.fulfilled, (state, action) => {

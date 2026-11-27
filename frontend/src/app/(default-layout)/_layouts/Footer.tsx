@@ -1,9 +1,9 @@
 "use client"
 
 import AppSnackbar from "@/components/app/AppSnackbar"
-import { clientFetch } from "@/lib/fetch/client-fetch.util"
 import { selectDeviceType } from "@/features/global/states/app/slice"
-import { useAppSelector } from "@/lib/state/hooks"
+import { sendFeedback } from "@/features/global/states/sendFeedback.thunk"
+import { useAppDispatch, useAppSelector } from "@/lib/state/hooks"
 import { 
     Box, 
     Button, 
@@ -23,19 +23,24 @@ import {
 import { useState } from "react"
 
 function FeedbackDialog({onClose, ...props}: DialogProps) {
+    const dispatch = useAppDispatch()
     const [message, setMessage] = useState("")
-
     const [successSnackbarOpen, setSuccessSnackbarOpen] = useState<boolean>(false)
+    const [errorSnackbarOpen, setErrorSnackbarOpen] = useState(false)
+    const [submitting, setSubmitting] = useState(false)
 
-    const handleSendFeedback = () => {
-        clientFetch.post("/sendFeedback", {
-            body: JSON.stringify({
-                message: message
-            })
-        })
-
-        onClose?.({}, "backdropClick")
-        setSuccessSnackbarOpen(true)
+    const handleSendFeedback = async () => {
+        setSubmitting(true)
+        setErrorSnackbarOpen(false)
+        try {
+            await dispatch(sendFeedback(message)).unwrap()
+            onClose?.({}, "backdropClick")
+            setSuccessSnackbarOpen(true)
+        } catch {
+            setErrorSnackbarOpen(true)
+        } finally {
+            setSubmitting(false)
+        }
     }
 
     return (
@@ -67,6 +72,7 @@ function FeedbackDialog({onClose, ...props}: DialogProps) {
                     <Button
                         variant="contained"
                         onClick={handleSendFeedback}
+                        disabled={submitting}
                     >
                         Отправить
                     </Button>
@@ -77,6 +83,12 @@ function FeedbackDialog({onClose, ...props}: DialogProps) {
                 variant="success" 
                 message="Обратная связь отправлена успешна"
                 onClose={() => setSuccessSnackbarOpen(false)}
+            />
+            <AppSnackbar
+                open={errorSnackbarOpen}
+                variant="error"
+                message="Не удалось отправить обратную связь"
+                onClose={() => setErrorSnackbarOpen(false)}
             />
         </>
     )

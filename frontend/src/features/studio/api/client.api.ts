@@ -4,7 +4,7 @@ import { clientFetch } from "@/lib/fetch/client-fetch.util"
 import { StudioManga } from "../types/studio-manga.type"
 import { StudioTranslation } from "../types/studio-translation.type"
 import { Chapter } from "@/types/chapter"
-import { StudioChapter } from "../types/studio-chapter.type"
+import { StudioChapter, StudioChapterListItem } from "../types/studio-chapter.type"
 import { Translation } from "@/features/translations/types/translation.type"
 import { TranslationContext } from "@/features/translations/types"
 import { GetCreateChapterFormResponseData } from "./client.api.response.types"
@@ -30,10 +30,16 @@ export const studioClientAPI = {
         return await clientFetch.get<Translation[], null, TranslationContext[]>(`/studio/profiles/${slug}/translations`)
     },
 
-    createManga: async (profileSlug: string, formData: FormData) => {
-        const response = await clientFetch.post<StudioManga>(`/studio/profiles/${profileSlug}/manga`, {
-            body: formData
-        })
+    createManga: async (profileSlug: string, formData: FormData, idempotencyKey: string) => {
+        const response = await clientFetch.post<StudioManga>(
+            `/studio/profiles/${profileSlug}/manga`, 
+            {
+                headers: {
+                    "Idempotency-Key": idempotencyKey
+                },
+                body: formData
+            }
+        )
 
         return response
     },
@@ -78,24 +84,26 @@ export const studioClientAPI = {
         }, {use_json: true})
     },
 
-    createChapter: async (translationId: number, form: FormData) => {
+    createChapter: async (translationId: number, body: string, idempotencyKey: string) => {
         return clientFetch.post<StudioChapter>(`/studio/translations/${translationId}/chapters`, {
-            body: form
-        })
+            body,
+            headers: {"Idempotency-Key": idempotencyKey},
+        }, {use_json: true})
     },
 
     getTranslationChapters: async (translationId: number) => {
-        return clientFetch.get<StudioChapter[]>(`/studio/translations/${translationId}/chapters`)
+        return clientFetch.get<StudioChapterListItem[]>(`/studio/translations/${translationId}/chapters`)
     },
 
     getChapter: async (chapterId: number) => {
         return clientFetch.get<StudioChapter>(`/studio/chapters/${chapterId}`)
     },
 
-    updateChapter: async(chapterId: number, formData: FormData) => {
+    updateChapter: async(chapterId: number, body: string, idempotencyKey: string) => {
         return clientFetch.put<StudioChapter>(`/studio/chapters/${chapterId}`, {
-            body: formData
-        })
+            body,
+            headers: {"Idempotency-Key": idempotencyKey},
+        }, {use_json: true})
     },
 
     getChapterCreateForm: (translationID: number) => {

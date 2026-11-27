@@ -16,6 +16,7 @@ class ProfileRepository(BaseRepository):
     def delete_avatar(self, profile: Profile):
         if profile.avatar:
             profile.avatar.delete()
+            profile.avatar = None
             
         return profile
     
@@ -25,7 +26,7 @@ class ProfileRepository(BaseRepository):
         profile.avatar = avatar
 
         if old_avatar:
-            old_avatar.delete(commit=True)
+            old_avatar.delete()
 
         return profile
 

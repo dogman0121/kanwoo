@@ -40,6 +40,25 @@ class ImageService:
         if self.output_format == "JPEG":
             self._image = self._image.convert("RGB")
 
+    @property
+    def size(self) -> tuple[int, int]:
+        return self._image.size
+
+    def encode_regions(self, size, boxes, filename, content_type):
+        with self._image.convert("RGBA") as image:
+            for left, top, right, bottom in boxes:
+                source_box = (
+                    left * image.width / size[0],
+                    top * image.height / size[1],
+                    right * image.width / size[0],
+                    bottom * image.height / size[1],
+                )
+                region_size = (right - left, bottom - top)
+                with image.resize(region_size, Image.Resampling.LANCZOS, box=source_box) as region:
+                    with io.BytesIO() as output:
+                        region.save(output, format=self.output_format)
+                        yield Img(filename, content_type, output.getvalue(), region.width, region.height)
+
     def resize(self, size: Tuple[int, int], fit=False) -> Image:
         original_format = self._image.format or 'JPEG'
         

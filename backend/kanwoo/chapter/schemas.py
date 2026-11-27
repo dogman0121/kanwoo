@@ -1,5 +1,9 @@
 import json
 
+from dependency_injector.wiring import Provide, inject
+
+from kanwoo.file_storage import CHAPTER_OBJECT_PREFIX, LEGACY_CHAPTER_OBJECT_PREFIX, S3Storage
+
 from kanwoo.schemas import PrivacySchema, RefAttrSchema
 from kanwoo.profile.schemas import GetProfileSchema
 
@@ -12,7 +16,10 @@ class GetPageSchema(Schema):
     width = fields.Integer()
     height = fields.Integer()
 
-    def get_link(self, obj):
+    @inject
+    def get_link(self, obj, storage: S3Storage | None = Provide["object_storage"]):
+        if obj.path and obj.path.startswith((CHAPTER_OBJECT_PREFIX, LEGACY_CHAPTER_OBJECT_PREFIX)):
+            return storage.get_url(obj.path) if storage is not None else None
         return str(obj)
 
 

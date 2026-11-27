@@ -1,11 +1,10 @@
 "use client"
 
-import { PPage } from "./PPage"
-
+import MangaInfoPage from "@/features/studio/pages/MangaInfoPage"
 
 export default function Page() {
 
     return (
-        <PPage/>
+        <MangaInfoPage />
     )
 }

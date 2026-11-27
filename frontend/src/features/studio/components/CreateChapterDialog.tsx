@@ -1,44 +1,76 @@
 import { Button, Dialog, DialogActions, DialogContent, DialogTitle } from "@mui/material"
-import { useAppDispatch } from "@/lib/state/hooks"
+import { useWatch } from "react-hook-form"
 import CreateChapterForm, { ChapterCreateFormSchema, useCreateForm } from "../forms/CreateChapterForm"
+import type { ChapterCreateSubmission } from "../forms/convertFormDataIntoJSON"
+import { useChapterUploads } from "../forms/useChapterUploads"
 
-export default function CreateChapterDialog({ 
-    open, 
-    onSubmit, 
+export default function CreateChapterDialog({
+    open,
+    onSubmit,
     onClose,
-    translationID 
+    translationID,
 }: {
     open: boolean,
     translationID: number,
-    onSubmit?: (data: ChapterCreateFormSchema) => Promise<void>,
-    onClose?: () => void,
+    onSubmit: (data: ChapterCreateSubmission) => Promise<void>,
+    onClose: () => void,
 }) {
-    const methods = useCreateForm({ translationID: translationID });
+    const methods = useCreateForm({translationID})
+    const {isSubmitting, isValid, isLoading} = methods.formState
 
-    const { isSubmitting, isValid, isLoading } = methods.formState; // Читаем свойства ЯВНО
+    const pages = useWatch({control: methods.control, name: "pages"})
 
-    console.log(isSubmitting, isValid)
+    const uploads = useChapterUploads(pages)
+
+    const submit = async (data: ChapterCreateFormSchema) => {
+        if (!uploads.ready) return
+
+        const pages = data.pages.flatMap(page => {
+            const dimensions = uploads.statuses[page.uuid]?.dimensions
+            return dimensions ? [{uuid: page.uuid, ...dimensions}] : []
+        })
+
+        if (pages.length !== data.pages.length) return
+
+        try {
+            await onSubmit({...data, pages})
+        } catch {
+            // The request reports its error through the app snackbar.
+        }
+    }
 
     return (
-        <Dialog open={open} onClose={onClose} sx={{ "& .MuiDialog-paper": { width: "960px", maxWidth: "none" } }}>
+        <Dialog
+            open={open}
+            onClose={isSubmitting ? undefined : onClose}
+            fullWidth
+            maxWidth="md"
+            sx={{
+                "& .MuiDialog-paper": {
+                    width: "100%"
+                }
+            }}
+        >
             <DialogTitle>Создание главы</DialogTitle>
             <DialogContent>
-                {/* Просто передаем methods */}
-                <CreateChapterForm
-                    onSubmit={onSubmit}
-                    methods={methods}
-                />
+                {!isLoading && (
+                    <CreateChapterForm 
+                        onSubmit={submit}
+                        methods={methods} 
+                        uploads={uploads} 
+                    />
+                )}
             </DialogContent>
             <DialogActions>
-                <Button variant="outlined" onClick={onClose}>Отмена</Button>
+                <Button variant="outlined" onClick={onClose} disabled={isSubmitting}>Отмена</Button>
                 <Button
                     variant="contained"
                     type="submit"
                     form="chapter-info"
                     loading={isSubmitting}
-                    disabled={!isValid}
+                    disabled={isLoading || !isValid || !uploads.ready}
                 >
-                    Создать
+                    Отправить
                 </Button>
             </DialogActions>
         </Dialog>

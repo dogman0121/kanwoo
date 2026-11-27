@@ -29,7 +29,7 @@ def get_create_chapter_form_handler(
             "name": "",
             "chapter": last_chapter_number + 1,
             "extra_number": None,
-            "privacy_id": Privacy.PRIVATE,
+            "privacy_id": Privacy.PRIVATE.value[0],
             "pages": [],
             "blocked_fields": []
         })

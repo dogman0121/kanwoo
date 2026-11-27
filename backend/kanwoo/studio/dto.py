@@ -2,18 +2,26 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
-class StoredChapterPageDTO:
-    key: str
-    width: int
-    height: int
-    original_filename: str
+class ChapterPageDTO:
+    uuid: str
+    is_new: bool
+    width: int | None = None
+    height: int | None = None
+
+
+@dataclass(frozen=True, kw_only=True)
+class ChapterDetailsDTO:
+    chapter: int
+    privacy_id: int
+    name: str | None = None
+    extra_number: int | None = None
 
 
 @dataclass(frozen=True)
-class CreateStudioChapterDTO:
-    creator_id: int
-    chapter: int
-    privacy_id: int
-    pages: list[StoredChapterPageDTO]
-    name: str | None = None
-    extra_number: int | None = None
+class CreateStudioChapterDTO(ChapterDetailsDTO):
+    pages: list[ChapterPageDTO]
+
+
+@dataclass(frozen=True)
+class UpdateStudioChapterDTO(ChapterDetailsDTO):
+    pages: list[ChapterPageDTO]

@@ -1,6 +1,6 @@
 import { Box, Grid } from "@mui/material";
 import { Profile } from "@/features/profile/types/profile.type";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, useForm, UseFormReturn } from "react-hook-form";
 import { useAppDispatch, useAppSelector } from "@/lib/state/hooks";
 import { selectAuthProfile } from "@/features/auth/states/auth-profile";
 import { StudioManga } from "../types/studio-manga.type";
@@ -20,9 +20,8 @@ import MangaPromoName from "@/features/studio/components/ui/manga/PromoName";
 import MangaPromoBackground from "@/features/studio/components/ui/manga/PromoBackground";
 import MangaPromoLogo from "@/features/studio/components/ui/manga/PromoLogo";
 import MangaBackground from "@/features/studio/components/ui/manga/Background";
-import { act, useEffect } from "react";
+import { useEffect } from "react";
 import MangaPoster from "../components/ui/manga/Poster";
-import prepareFileAction from "../lib/prepare-file-action";
 
 
 const convertDataIntoForm = (manga?: StudioManga | null) => {
@@ -30,13 +29,13 @@ const convertDataIntoForm = (manga?: StudioManga | null) => {
         slug: manga?.slug || "",
         name: manga?.name || "",
         description: manga?.description || "",
-        genres: manga?.genres.map(g => g.id) || [],
-        adult: manga?.adult.id || 1,
-        privacy: manga?.privacy.id || 1,
-        type: manga?.type.id || 1,
+        genresIds: manga?.genres.map(g => g.id) || [],
+        adultId: manga?.adult.id || 1,
+        privacyId: manga?.privacy.id || 1,
+        typeId: manga?.type.id || 1,
         year: manga?.year || new Date().getFullYear(),
-        status: manga?.status.id || 1,
-        nameTranslations: manga?.name_translations.map(nt => ({lang: nt.lang.id, name: nt.name})) || [],
+        statusId: manga?.status.id || 1,
+        nameTranslations: manga?.name_translations.map(nt => ({lang_id: nt.lang.id, name: nt.name})) || [],
         poster: manga?.poster?.medium || null,
         background: manga?.background || null,
         promoName: manga?.promo_name || null,
@@ -45,57 +44,23 @@ const convertDataIntoForm = (manga?: StudioManga | null) => {
     }
 }
 
-
-
-export function convertFormIntoFormData(data: MangaUpdateInfoFormSchema) {
-    const formData = new FormData()
-
-    formData.set("name", data.name)
-    formData.set("slug", data.slug)
-    formData.set("privacy_id", data.privacy.toString())
-    formData.set("description", data.description)
-    formData.set("year", data.year.toString())
-    formData.set("type_id", data.type.toString())
-    formData.set("status_id", data.status.toString())
-    formData.set("adult_id", data.adult.toString())
-    formData.set("poster_action", prepareFileAction(data.poster))
-    formData.set("background_action", prepareFileAction(data.background))
-    formData.set("promo_name_action", prepareFileAction(data.promoName))
-    formData.set("promo_logo_action", prepareFileAction(data.promoLogo))
-    formData.set("promo_background_action", prepareFileAction(data.promoBackground))
-    formData.set("name_translations", JSON.stringify(data.nameTranslations))
-
-    for (let g of data.genres) {
-        formData.set("genre_id", g.toString())
-    }
-
-    data.poster && formData.set("poster", data.poster)
-    data.background && formData.set("background", data.background)
-    data.promoName && formData.set("promo_name", data.promoName)
-    data.promoLogo && formData.set("promo_logo", data.promoLogo)
-    data.promoBackground && formData.set("promo_background", data.promoBackground)
-    
-    return formData
-}
-
 export interface MangaUpdateInfoFormSchema {
     slug: string,
     name: string,
     description: string,
-    genres: number[],
-    adult: number,
-    privacy: number,
-    type: number,
-    status: number,
+    genresIds: number[],
+    adultId: number,
+    privacyId: number,
+    typeId: number,
+    statusId: number,
     year: number,
-    nameTranslations: {lang: number, name: string}[],
+    nameTranslations: {lang_id: number, name: string}[],
     poster: string | File | null,
     background: string | File | null,
     promoName: string | File | null,
     promoBackground: string | File | null,
     promoLogo: string | File | null
 }
-
 
 
 export const useUpdateMangaInfoForm = (manga?: StudioManga) => {
@@ -116,14 +81,15 @@ export const useUpdateMangaInfoForm = (manga?: StudioManga) => {
 }
 
 export default function UpdateMangaInfoForm({
-    control,
-    handleSubmit, 
+    methods,
     onUpdate
 }: {
+    methods: UseFormReturn<MangaUpdateInfoFormSchema>,
     onUpdate?: (data: MangaUpdateInfoFormSchema) => void
-} & ReturnType<typeof useUpdateMangaInfoForm>) {
+}) {
     const manga = useAppSelector(selectManga)
 
+    const {control, handleSubmit} = methods
     const {validate, validating, isValid} = useSlugValidator()
 
     const onSubmit = async (data: MangaUpdateInfoFormSchema) => {
@@ -168,7 +134,7 @@ export default function UpdateMangaInfoForm({
                 />
                 <Controller 
                     control={control}
-                    name="privacy"
+                    name="privacyId"
                     defaultValue={Privacy.PRIVATE}
                     render={({field}) => (
                         <PrivacySelect 
@@ -237,7 +203,7 @@ export default function UpdateMangaInfoForm({
                 >
                     <Grid size={1}>
                         <Controller 
-                            name="type"
+                            name="typeId"
                             control={control}
                             render={({field: {value, ...props}}) => (
                                 <MangaType
@@ -250,7 +216,7 @@ export default function UpdateMangaInfoForm({
                     </Grid>
                     <Grid size={1}>
                         <Controller 
-                            name="status"
+                            name="statusId"
                             control={control}
                             render={({field: {value, ...props}}) => (
                                 <MangaStatus
@@ -275,7 +241,7 @@ export default function UpdateMangaInfoForm({
                     </Grid>
                     <Grid size={1}>
                         <Controller 
-                            name="adult"
+                            name="adultId"
                             control={control}
                             render={({field: {value, ...props}}) => (
                                 <MangaAdult
@@ -287,7 +253,7 @@ export default function UpdateMangaInfoForm({
                     </Grid>
                 </Grid>
                 <Controller 
-                    name="genres"
+                    name="genresIds"
                     control={control}
                     render={({field: {value, onChange, ...props}}) => (
                         <MangaGenres

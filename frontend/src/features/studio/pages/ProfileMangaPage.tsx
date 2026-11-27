@@ -16,11 +16,13 @@ import { useAppDispatch, useAppSelector } from "@/lib/state/hooks";
 import { Box, Button, Divider, Grid, Stack, SxProps, Typography } from "@mui/material";
 import Link from "next/link";
 import React, { Children, useEffect, useState, useTransition } from "react";
-import { convertFormToFormData, MangaCreateFormSchema } from "@/features/studio/forms/CreateMangaForm";
+import { MangaCreateFormSchema } from "@/features/studio/forms/CreateMangaForm";
 import { studioClientAPI } from "@/features/studio/api/client.api";
 import { openSnackbar } from "@/features/global/states/app/slice";
 import { useSearchParams } from "next/navigation";
 import ProfileSlug from "../components/ui/profile/ProfileSlug";
+import { useIdempotency } from "@/lib/use-idempotency.hook";
+import EditBody from "@/components/edit/EditBody";
 
 
 function MangaGrid({children}: {children: React.ReactNode}) {
@@ -103,10 +105,10 @@ function MangaGridRow({manga}: {manga: StudioManga}){
                 <Typography>{manga.moderation_status.status_type.name}</Typography>
             </Grid>
             <Grid size={2}>
-                <Typography>{manga.stats.comments}</Typography>
+                <Typography>{manga.stats?.comments}</Typography>
             </Grid>
             <Grid size={2}>
-                <Typography>{manga.stats.views}</Typography>    
+                <Typography>{manga.stats?.views}</Typography>    
             </Grid>                
         </MangaGrid>
     )
@@ -117,7 +119,8 @@ export default function ProfileMangaPage() {
 
     const searchParams = useSearchParams()
 
-    const [isSubmitting, setIsSubmitting] = useTransition()
+    const {getKey} = useIdempotency()
+
     const profile = useAppSelector(selectProfile)
     const createMangaDialogOpen = useAppSelector(selectCreateMangaDialogOpen)
 
@@ -125,7 +128,11 @@ export default function ProfileMangaPage() {
         if (!profile)
             return
 
-        dispatch(loadManga(profile.slug))
+        dispatch(
+            loadManga(
+                profile.slug
+            )
+        )
     }, [profile])
 
     const manga = useAppSelector(selectManga)
@@ -133,9 +140,30 @@ export default function ProfileMangaPage() {
     const handleCreateManga = async (data: MangaCreateFormSchema) => {
         if (!profile) return
 
-        setIsSubmitting(async () => {
-            await dispatch(createManga({profileSlug: profile.slug, form: data})).unwrap()
+        const body = JSON.stringify({
+            name: data.name,
+            privacy_id: data.privacyId,
+            description: data.description,
+            year: data.year,
+            type_id: data.typeId,
+            status_id: data.statusId,
+            adult_id: data.adultId,
+            genres_ids: data.genresIds,
+            poster_hash: data.poster && await crypto.subtle.digest(
+                'SHA-256', await data.poster.arrayBuffer()
+            ),
+            background_hash: data.background && await crypto.subtle.digest(
+                'SHA-256', await data.background.arrayBuffer()
+            ),
         })
+
+        await dispatch(
+            createManga({
+                idempotencyKey: getKey(body),
+                profileSlug: profile.slug, 
+                form: data
+            })
+        ).unwrap()
     }
 
     useEffect(() => {
@@ -151,15 +179,11 @@ export default function ProfileMangaPage() {
     }, [createMangaDialogOpen])
 
     useEffect(() => {
-        if (searchParams.get("createManga") == "true") {
-            dispatch(setCreateMangaDialogOpen(true))
-        } else {
-            dispatch(setCreateMangaDialogOpen(false))
-        }
+        dispatch(setCreateMangaDialogOpen(searchParams.get("createManga") == "true"))
     }, [searchParams])
 
     return (
-        <>
+        <EditBody>
             <EditHeader>Мои тайтлы</EditHeader>
             <EditHeaderNav 
                 buttons={
@@ -202,6 +226,6 @@ export default function ProfileMangaPage() {
                 onCreate={handleCreateManga}
                 onClose={() => dispatch(setCreateMangaDialogOpen(false))}
             />
-        </>
+        </EditBody>
     )
 }

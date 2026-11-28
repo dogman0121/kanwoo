@@ -1,6 +1,33 @@
 import { NextRequest, NextResponse, userAgent } from "next/server"
 import * as jose from "jose"
 
+function cleanAuthCredentials(request: NextRequest, headers: Headers) {
+    headers.delete("X-CSRF-TOKEN")
+
+    const authCookies = [
+        "access_token_cookie",
+        "refresh_token_cookie",
+        process.env.NEXT_PUBLIC_CSRF_ACCESS_COOKIE_NAME || "csrf_access_token",
+        process.env.NEXT_PUBLIC_CSRF_REFRESH_COOKIE_NAME || "csrf_refresh_token",
+        process.env.AUTH_PROFILE_COOKIE_NAME || "auth_profile_id",
+    ]
+    request.cookies.delete(authCookies)
+
+    const remainingCookies = request.cookies.toString()
+    if (remainingCookies) {
+        headers.set("cookie", remainingCookies)
+    } else {
+        headers.delete("cookie")
+    }
+
+    return [
+        "access_token_cookie=;max-age=-1;",
+        "csrf_access_token=;max-age=-1;",
+        "csrf_refresh_token=;max-age=-1;",
+        "refresh_token_cookie=;max-age=-1;",
+    ]
+}
+
 export async function proxy(request: NextRequest) {
     const { pathname } = request.nextUrl
 
@@ -58,29 +85,7 @@ export async function proxy(request: NextRequest) {
                             headers.set("X-CSRF-TOKEN", newCSRF)
                     }
                 } else {
-                    setCookieHeaders.push("access_token_cookie=;max-age=-1;")
-                    setCookieHeaders.push("csrf_access_token=;max-age=-1;")
-                    setCookieHeaders.push("csrf_refresh_token=;max-age=-1;")
-                    setCookieHeaders.push("refresh_token_cookie=;max-age=-1;")
-
-                    // Удаление заговолка и кук невалидного токена 
-                    headers.delete("X-CSRF-TOKEN")
-
-                    const authCookies = [
-                        "access_token_cookie",
-                        "refresh_token_cookie",
-                        process.env.NEXT_PUBLIC_CSRF_ACCESS_COOKIE_NAME || "csrf_access_token",
-                        process.env.NEXT_PUBLIC_CSRF_REFRESH_COOKIE_NAME || "csrf_refresh_token",
-                        process.env.AUTH_PROFILE_COOKIE_NAME || "auth_profile_id",
-                    ]
-                    request.cookies.delete(authCookies)
-
-                    const remainingCookies = request.cookies.toString()
-                    if (remainingCookies) {
-                        headers.set("cookie", remainingCookies)
-                    } else {
-                        headers.delete("cookie")
-                    }
+                    setCookieHeaders = cleanAuthCredentials(request, headers)
                 }
             }
         } catch (e) {

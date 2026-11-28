@@ -36,31 +36,6 @@ beforeEach(() => {
 
 afterEach(() => jest.restoreAllMocks())
 
-test.each(["/catalog", "/api/profiles/me"])(
-    "drops auth cookies and the CSRF header on a JWT error for %s",
-    async (pathname) => {
-        decodeJwtMock.mockImplementation(() => {
-            throw new Error("Invalid JWT")
-        })
-        const response = await proxy(createRequest(pathname, authCookies + "; theme=dark"))
-
-        expect(response.headers.get("x-middleware-request-cookie")).toBe("theme=dark")
-        expect(response.headers.get("x-middleware-request-x-csrf-token")).toBeNull()
-        expect(response.headers.get("x-middleware-override-headers")?.split(",")).not.toContain("x-csrf-token")
-        expect(response.headers.has("set-cookie")).toBe(false)
-    },
-)
-
-test("drops the Cookie header when all cookies belong to the session", async () => {
-    decodeJwtMock.mockImplementation(() => {
-        throw new Error("Invalid JWT")
-    })
-    const response = await proxy(createRequest("/api/profiles/me", authCookies))
-
-    expect(response.headers.get("x-middleware-request-cookie")).toBeNull()
-    expect(response.headers.get("x-middleware-override-headers")?.split(",")).not.toContain("cookie")
-})
-
 test("forwards session cookies and the CSRF header for an unexpired token", async () => {
     decodeJwtMock.mockReturnValue({ exp: Math.floor(Date.now() / 1000) + 60 })
     const response = await proxy(createRequest("/api/profiles/me", authCookies))

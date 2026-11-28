@@ -65,7 +65,23 @@ export async function proxy(request: NextRequest) {
                 }
             }
         } catch (e) {
-            console.error("JWT Error:", e)
+            headers.delete("X-CSRF-TOKEN")
+
+            const authCookies = [
+                "access_token_cookie",
+                "refresh_token_cookie",
+                process.env.NEXT_PUBLIC_CSRF_ACCESS_COOKIE_NAME || "csrf_access_token",
+                process.env.NEXT_PUBLIC_CSRF_REFRESH_COOKIE_NAME || "csrf_refresh_token",
+                process.env.AUTH_PROFILE_COOKIE_NAME || "auth_profile_id",
+            ]
+            request.cookies.delete(authCookies)
+
+            const remainingCookies = request.cookies.toString()
+            if (remainingCookies) {
+                headers.set("cookie", remainingCookies)
+            } else {
+                headers.delete("cookie")
+            }
         }
     }
 

@@ -33,7 +33,7 @@ jobs:
     uses: ./.github/workflows/frontend.deploy.yml
     with:
       environment: live
-      image-tag: frontend-prod_${{ github.sha }}
+      image-tag: frontend_${{ github.sha }}
     secrets:
       YC_SA_ID: ${{ secrets.YC_SA_ID }}
       SSH_HOST: ${{ secrets.SSH_HOST }}

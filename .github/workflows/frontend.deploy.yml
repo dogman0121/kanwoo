@@ -41,9 +41,9 @@ jobs:
             username: ${{ secrets.SSH_USER }}
             key: ${{ secrets.SSH_PRIVATE_KEY }}
             port: ${{ secrets.SSH_PORT }}
-            source: "frontend/${{ vars.COMPOSE_FILENAME }}"
+            source: "frontend/${{ vars.FRONTEND_COMPOSE_FILENAME }}"
             strip_components: 1
-            target: ${{ vars.COMPOSE_DESTINATION_PATH }}
+            target: ${{ vars.FRONTEND_COMPOSE_DESTINATION_PATH }}
             debug: true
 
 

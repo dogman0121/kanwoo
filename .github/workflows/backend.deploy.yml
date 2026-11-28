@@ -70,7 +70,7 @@ jobs:
             CR_REGISTRY: ${{ vars.CR_REGISTRY }}
             CR_REPOSITORY: ${{ vars.CR_REPOSITORY }}
             IMAGE_TAG: ${{ inputs.image-tag }}
-            DOCKER_COMPOSE_PATH: ${{ vars.COMPOSE_BACKEND_DESTINATION_PATH }}
+            DOCKER_COMPOSE_PATH: ${{ vars.BACKEND_COMPOSE_DESTINATION_PATH }}
             DOCKER_COMPOSE_FILENAME: ${{ vars.BACKEND_COMPOSE_FILENAME }}
             SECRET_KEY: ${{ secrets.SECRET_KEY }}
             DATABASE_URI: ${{ secrets.DATABASE_URI }}

@@ -54,10 +54,10 @@ jobs:
             CR_REGISTRY: ${{ vars.CR_REGISTRY }}
             CR_REPOSITORY: ${{ vars.CR_REPOSITORY }}
             IMAGE_TAG: ${{ inputs.image-tag }}
-            DOCKER_COMPOSE_PATH: ${{ vars.COMPOSE_DESTINATION_PATH }}
-            DOCKER_COMPOSE_FILENAME: ${{ vars.COMPOSE_FILENAME }}
+            DOCKER_COMPOSE_PATH: ${{ vars.FRONTEND_COMPOSE_DESTINATION_PATH }}
+            DOCKER_COMPOSE_FILENAME: ${{ vars.FRONTEND_COMPOSE_FILENAME }}
             API_URL: ${{vars.API_URL}}
-            PORT: ${{vars.PORT}}
+            PORT: ${{vars.FRONTEND_PORT}}
             PROJECT_NAME: ${{vars.PROJECT_NAME}}
           with:
             host: ${{ secrets.SSH_HOST }}

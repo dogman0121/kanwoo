@@ -21,7 +21,7 @@ jobs:
     needs: test
     uses: ./.github/workflows/backend.build.yml
     with:
-      environment: backend-test
+      environment: staged
       image-tag: backend-test_${{ github.sha }}
     secrets:
       YC_SA_ID: ${{ secrets.YC_SA_ID }}
@@ -31,7 +31,7 @@ jobs:
     needs: build
     uses: ./.github/workflows/backend.deploy.yml
     with:
-      environment: backend-test
+      environment: staged
       image-tag: backend-test_${{ github.sha }}
     secrets:
       YC_SA_ID: ${{ secrets.YC_SA_ID }}
@@ -40,10 +40,10 @@ jobs:
       SSH_USER: ${{ secrets.SSH_USER }}
       SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
       YANDEX_OAUTH_CLIENT_SECRET: ${{ secrets.YANDEX_OAUTH_CLIENT_SECRET }}
-      DEPLOY_DATABASE_URI: ${{ secrets.TEST_DATABASE_URI }}
-      DEPLOY_CACHE_URI: ${{ secrets.TEST_CACHE_URI }}
-      DEPLOY_SECRET_KEY: ${{ secrets.TEST_SECRET_KEY }}
-      DEPLOY_MAIL_SERVER: ${{ secrets.TEST_MAIL_SERVER }}
-      DEPLOY_MAIL_PORT: ${{ secrets.TEST_MAIL_PORT }}
-      DEPLOY_MAIL_USERNAME: ${{ secrets.TEST_MAIL_USERNAME }}
-      DEPLOY_MAIL_PASSWORD: ${{ secrets.TEST_MAIL_PASSWORD }}
+      DATABASE_URI: ${{ secrets.TEST_DATABASE_URI }}
+      CACHE_URI: ${{ secrets.CACHE_URI }}
+      SECRET_KEY: ${{ secrets.SECRET_KEY }}
+      MAIL_SERVER: ${{ secrets.MAIL_SERVER }}
+      MAIL_PORT: ${{ secrets.MAIL_PORT }}
+      MAIL_USERNAME: ${{ secrets.MAIL_USERNAME }}
+      MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}

@@ -21,19 +21,19 @@ on:
                 required: true
             YANDEX_OAUTH_CLIENT_SECRET:
                 required: true
-            DEPLOY_DATABASE_URI:
+            DATABASE_URI:
                 required: true
-            DEPLOY_CACHE_URI:
+            CACHE_URI:
                 required: true
-            DEPLOY_SECRET_KEY:
+            SECRET_KEY:
                 required: true
-            DEPLOY_MAIL_SERVER:
+            MAIL_SERVER:
                 required: true
-            DEPLOY_MAIL_PORT:
+            MAIL_PORT:
                 required: true
-            DEPLOY_MAIL_USERNAME:
+            MAIL_USERNAME:
                 required: true
-            DEPLOY_MAIL_PASSWORD:
+            MAIL_PASSWORD:
                 required: true
 
 jobs:
@@ -70,21 +70,21 @@ jobs:
             CR_REGISTRY: ${{ vars.CR_REGISTRY }}
             CR_REPOSITORY: ${{ vars.CR_REPOSITORY }}
             IMAGE_TAG: ${{ inputs.image-tag }}
-            DOCKER_COMPOSE_PATH: ${{ vars.COMPOSE_DESTINATION_PATH }}
-            DOCKER_COMPOSE_FILENAME: ${{ vars.COMPOSE_FILENAME }}
-            SECRET_KEY: ${{ secrets.DEPLOY_SECRET_KEY }}
-            DATABASE_URI: ${{ secrets.DEPLOY_DATABASE_URI }}
-            CACHE_URI: ${{ secrets.DEPLOY_CACHE_URI }}
+            DOCKER_COMPOSE_PATH: ${{ vars.COMPOSE_BACKEND_DESTINATION_PATH }}
+            DOCKER_COMPOSE_FILENAME: ${{ vars.BACKEND_COMPOSE_FILENAME }}
+            SECRET_KEY: ${{ secrets.SECRET_KEY }}
+            DATABASE_URI: ${{ secrets.DATABASE_URI }}
+            CACHE_URI: ${{ secrets.CACHE_URI }}
             CELERY_BROKERY_URI: ${{ vars.CELERY_BROKERY_URI }}
             S3_BUCKET_NAME: ${{ vars.S3_BUCKET_NAME }}
             S3_ENDPOINT_URL: ${{ vars.S3_ENDPOINT_URL }}
             S3_REGION_NAME: ${{ vars.S3_REGION_NAME }}
             S3_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
             S3_ACCESS_SECRET_KEY: ${{ secrets.S3_ACCESS_SECRET_KEY }}
-            MAIL_SERVER: ${{ secrets.DEPLOY_MAIL_SERVER }}
-            MAIL_PORT: ${{ secrets.DEPLOY_MAIL_PORT }}
-            MAIL_USERNAME: ${{ secrets.DEPLOY_MAIL_USERNAME }}
-            MAIL_PASSWORD: ${{ secrets.DEPLOY_MAIL_PASSWORD }}
+            MAIL_SERVER: ${{ secrets.MAIL_SERVER }}
+            MAIL_PORT: ${{ secrets.MAIL_PORT }}
+            MAIL_USERNAME: ${{ secrets.MAIL_USERNAME }}
+            MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
             MAIL_DEFAULT_SENDER: ${{ vars.MAIL_DEFAULT_SENDER }}
             COOKIE_DOMAIN: ${{ vars.COOKIE_DOMAIN }}
             ACCESS_COOKIE_NAME: ${{ vars.ACCESS_COOKIE_NAME }}
@@ -97,7 +97,7 @@ jobs:
             CDN_URL: ${{ vars.CDN_URL }}
             DOMAIN: ${{ vars.DOMAIN }}
             FRONTEND_URL: ${{ vars.FRONTEND_URL }}
-            PORT: ${{ vars.PORT }}
+            PORT: ${{ vars.BACKEND_PORT }}
             PROJECT_NAME: ${{ vars.PROJECT_NAME}}
             YANDEX_OAUTH_CLIENT_SECRET: ${{secrets.YANDEX_OAUTH_CLIENT_SECRET}}
             YANDEX_OAUTH_LOGIN_URL: ${{vars.YANDEX_OAUTH_LOGIN_URL}}

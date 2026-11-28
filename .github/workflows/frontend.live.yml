@@ -22,8 +22,8 @@ jobs:
     needs: test
     uses: ./.github/workflows/frontend.build.yml
     with:
-      image-tag: frontend-prod_${{ github.sha }}
-      environment: frontend-prod
+      image-tag: frontend_${{ github.sha }}
+      environment: live
     secrets:
       YC_SA_ID: ${{ secrets.YC_SA_ID }}
 
@@ -32,7 +32,7 @@ jobs:
     needs: build
     uses: ./.github/workflows/frontend.deploy.yml
     with:
-      environment: frontend-prod
+      environment: live
       image-tag: frontend-prod_${{ github.sha }}
     secrets:
       YC_SA_ID: ${{ secrets.YC_SA_ID }}

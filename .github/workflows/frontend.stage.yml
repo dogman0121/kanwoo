@@ -22,7 +22,7 @@ jobs:
     uses: ./.github/workflows/frontend.build.yml
     with:
       image-tag: frontend-test_${{ github.sha }}
-      environment: frontend-test
+      environment: live
     secrets:
       YC_SA_ID: ${{ secrets.YC_SA_ID }}
 

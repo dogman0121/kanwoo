@@ -25,7 +25,7 @@ export function convertToForm(manga: Manga) {
         slug: manga.slug || "",
         description: manga.description || "",
         nameTranslations: manga.name_translations.map(l => (
-            {lang: l.lang.id, name: l.name}
+            {lang_id: l.lang.id, name: l.name}
         )) || [],
         type: manga.type?.id || 1 ,
         status: manga.status?.id || 1,
@@ -44,7 +44,7 @@ export function convertToForm(manga: Manga) {
 export interface MangaEditForm {
     slug: string,
     name: string,
-    nameTranslations: {name: string, lang: number}[],
+    nameTranslations: {name: string, lang_id: number}[],
     description: string,
     year: number,
     type: number,
